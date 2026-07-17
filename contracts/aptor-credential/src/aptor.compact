@@ -2,13 +2,65 @@ pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
-export ledger successfulProofs: Counter;
+import "schnorr" prefix Schnorr_;
 
-witness durationMonths(): Uint<16>;
+export { Schnorr_SchnorrSignature };
 
-export circuit proveDuration(minimumDurationMonths: Uint<16>): [] {
-  assert(durationMonths() >= minimumDurationMonths,
-         "Private duration does not satisfy the public minimum"
+export struct DurationCredential {
+  credentialId: Bytes<32>;
+  holderCommitment: Bytes<32>;
+  durationMonths: Uint<16>;
+}
+
+export ledger acceptedIssuerPublicKey: JubjubPoint;
+
+export ledger successfulCredentialProofs: Counter;
+
+witness getCredentialBundle(): [DurationCredential, Schnorr_SchnorrSignature, Bytes<32>];
+
+constructor(issuerPublicKey: JubjubPoint) {
+  acceptedIssuerPublicKey = disclose(issuerPublicKey);
+}
+
+export pure circuit deriveHolderCommitment(holderSecret: Bytes<32>): Bytes<32> {
+  return persistentHash<[Bytes<15>, Bytes<32>]>(["aptor:holder:v1", holderSecret]);
+}
+
+export pure circuit deriveCredentialDigest(credential: DurationCredential): Bytes<32> {
+  return persistentHash<[Bytes<28>, Bytes<32>, Bytes<32>, Uint<16>]>(
+           ["aptor:duration-credential:v1",
+            credential.credentialId,
+            credential.holderCommitment,
+            credential.durationMonths]
+           );
+}
+
+circuit credentialSignatureMessage(digest: Bytes<32>): Vector<4, Field> {
+  return [transientHash<Bytes<32>>(digest), 0, 0, 0];
+}
+
+export pure circuit schnorrChallenge(
+                      ann_x: Field,
+                      ann_y: Field,
+                      pk_x: Field,
+                      pk_y: Field,
+                      msg: Vector<4, Field>
+                      ): Field {
+  return Schnorr_schnorrChallenge(ann_x, ann_y, pk_x, pk_y, msg);
+}
+
+export circuit proveCredentialDuration(minimumDurationMonths: Uint<16>): [] {
+  const [credential, issuerSignature, holderSecret] = getCredentialBundle();
+  const digest = deriveCredentialDigest(credential);
+  const signingMessage = credentialSignatureMessage(digest);
+
+  Schnorr_schnorrVerify<4>(signingMessage, issuerSignature, acceptedIssuerPublicKey);
+  assert(deriveHolderCommitment(holderSecret) == credential.holderCommitment,
+         "Holder secret does not match the signed credential"
          );
-  successfulProofs.increment(1);
+  assert(credential.durationMonths >= minimumDurationMonths,
+         "Signed private duration does not satisfy the public minimum"
+         );
+
+  successfulCredentialProofs.increment(1);
 }

@@ -16,9 +16,13 @@ coverage/
 
 .midnight-state.json
 .midnight/
+.secrets/
 private-state/
 local-network-data/
 proof-server-data/
+*.issuer-signing-key
+*.holder-secret
+*.private-credential.json
 packages/aptor-midnight/logs/
 contracts/managed/
 contracts/**/keys/

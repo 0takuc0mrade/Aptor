@@ -18,20 +18,24 @@ and the failing no-submission path are repeatable.
 
 ### 2. Add credential integrity and valid-credential success
 
-- Define canonical credential encoding and domain separation.
-- Choose the issuer authorization design supported by the installed stack.
-- Add accepted-issuer and holder binding.
-- Create deterministic fixtures without real client data.
+- [x] Define fixed-width canonical credential encoding and domain separation.
+- [x] Use the official ZK Loan Jubjub Schnorr construction supported by the installed stack.
+- [x] Add a deployment-configured accepted issuer and private holder-secret binding.
+- [x] Create deterministic unit fixtures and ephemeral network fixtures without real client data.
 
-**Exit:** one valid issuer-authorized credential produces a verified success.
+**Exit:** complete. A valid issuer-signed credential produced a real proof,
+finalized local transaction, and `successfulCredentialProofs` transition from
+0 to 1.
 
 ### 3. Make altered credentials fail
 
-- Change each signed field one at a time.
-- Test unknown issuer, wrong holder, expired credential, and malformed encoding.
-- Distinguish proof-construction failure from a verified negative result.
+- [x] Change duration, holder commitment, and credential ID after signing.
+- [x] Test unaccepted issuer, wrong holder, threshold failure, and malformed bounds.
+- [x] Distinguish local circuit rejection from proof-server and transaction submission.
+- [ ] Add expiry tests only when expiry becomes part of the signed schema.
 
-**Exit:** automated tests show every alteration fails for the intended reason.
+**Exit:** complete for the Milestone 3 schema. Automated unit and provider-backed
+tests show every supported alteration fails before public state changes.
 
 ### 4. Implement all requested thresholds
 
@@ -71,6 +75,4 @@ and the failing no-submission path are repeatable.
 
 ## Exact next milestone
 
-Replace the caller-supplied duration with a canonical issuer-signed Aptor
-credential, bind that credential to its intended holder, and prove the duration
-threshold from authenticated private credential data.
+> Expand the authenticated Aptor credential to support skill membership, production-delivery status and private client-rating thresholds, then bind each verification to a structured proof request.

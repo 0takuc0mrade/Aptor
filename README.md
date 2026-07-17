@@ -10,7 +10,9 @@ A previous client or employer issues a private work credential. A future employe
 
 Professionals often cannot show their strongest work because it belongs to a client or employer. Conventional references disclose too much, while a résumé asks a verifier to trust an unstructured claim. Aptor creates a middle path: an accepted issuer attests to structured work facts, and a zero-knowledge proof verifies only the facts a verifier asked about.
 
-Aptor does **not** determine whether the issuer told the truth. It proves that an accepted issuer attested to an unmodified, unexpired credential owned by the professional and that the private credential satisfies a structured request.
+Aptor verifies that an accepted issuer signed the private credential and that
+the credential satisfies a requested threshold. Aptor does not prove that the
+issuer's original claim was truthful.
 
 ## Roles
 
@@ -22,13 +24,16 @@ The MVP supports all three roles inside one application.
 
 ## MVP journey
 
-1. An issuer creates and signs a credential for a professional.
-2. The professional receives and stores its private attributes.
-3. A verifier creates a bounded proof request.
-4. The professional selects a credential that should satisfy the request.
-5. Midnight checks issuer acceptance, integrity, ownership, expiry, and requested conditions.
-6. The verifier receives a pass/fail result for each requested condition.
-7. An altered or fake credential fails verification.
+1. An issuer creates and signs a credential bound to the professional's secret.
+2. The professional receives its private credential and issuer signature.
+3. A verifier requests a public minimum duration.
+4. The professional proves the signed private duration meets that minimum.
+5. Midnight checks the issuer signature, holder-secret binding, and threshold.
+6. The public state records only the accepted issuer key and a temporary success counter.
+7. An altered credential, wrong holder, unaccepted issuer, or failing threshold is rejected.
+
+Skills, ratings, production delivery, expiry, revocation, structured request
+receipts, browser-wallet binding, and frontend activation remain later work.
 
 ## Repository structure
 
@@ -37,7 +42,7 @@ aptor/
 ├── apps/
 │   └── web/                 Next.js application shell
 ├── contracts/               Compact source and generated-artifact boundary
-│   └── aptor-credential/    Private duration threshold contract package
+│   └── aptor-credential/    Authenticated private-duration contract package
 ├── docs/                    Architecture, privacy, scope, and build plan
 ├── packages/
 │   ├── aptor-midnight/       Local provider stack, deployment API, and network test
@@ -51,16 +56,16 @@ aptor/
 
 ## What is real and what is simulated
 
-| Area               | Foundation milestone                                          | MVP target                                                                             |
-| ------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Domain model       | Real shared strict TypeScript types                           | Same types drive contract and UI adapters                                              |
-| Frontend           | Real responsive role shell and routes                         | Real credential and proof workflow                                                     |
-| Credential signing | Designed, not implemented                                     | Real issuer signature or equivalent issuer-authorized commitment verified by the proof |
-| Midnight contract  | Real duration-threshold primitive and provider API            | Full credential integrity and bounded predicate policy                                 |
-| Proof generation   | Real proof-server generation and finalized local transactions | Repeatable proof generation through supported providers                                |
-| Wallet             | Not connected                                                 | Official supported wallet/DApp connector flow                                          |
-| Issuer onboarding  | Not implemented                                               | Company-domain checks may be clearly simulated for the hackathon                       |
-| Proof results      | No fictional results                                          | Results come only from a verified proof                                                |
+| Area               | Implemented now                                                   | Later target                                             |
+| ------------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| Domain model       | Strict signed/private/public credential types                     | Shared request and frontend adapters                     |
+| Frontend           | Responsive role shell and routes; no credential flow              | Issuance, storage, request, and proof workflows          |
+| Credential signing | Real Jubjub Schnorr signing with secure ephemeral keys            | Durable issuer key management and rotation               |
+| Midnight contract  | Verifies issuer signature, holder secret, and duration threshold  | More predicates, expiry, revocation, and request binding |
+| Proof generation   | Real proof-server generation and finalized local transactions     | Supported browser provider flow                          |
+| Wallet             | Local genesis-funded development wallet in network tests only     | Official browser wallet/DApp connector                   |
+| Issuer onboarding  | Not implemented                                                   | Explicit trust and issuer-management policy              |
+| Proof results      | Temporary public success counter backed by finalized transactions | Structured, request-bound verification receipts          |
 
 ## Getting started
 
@@ -133,6 +138,7 @@ npm run build
 - [Build plan](docs/BUILD_PLAN.md)
 - [Contract milestone 1](docs/CONTRACT_MILESTONE_1.md)
 - [Contract milestone 2](docs/CONTRACT_MILESTONE_2.md)
+- [Contract milestone 3](docs/CONTRACT_MILESTONE_3.md)
 
 ## Security baseline
 

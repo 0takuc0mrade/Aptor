@@ -1,29 +1,30 @@
 import {
-  compiledAptorDurationContract,
-  createDurationPrivateState,
+  compiledAptorCredentialContract,
   ledger,
-  type AptorDurationPrivateState,
+  type AptorCredentialPrivateState,
   type Ledger,
 } from "@aptor/credential-contract";
 import {
   deployContract,
   type FinalizedCallTxData,
 } from "@midnight-ntwrk/midnight-js-contracts";
+import type { JubjubPoint } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
 import type { ContractAddress } from "@midnight-ntwrk/midnight-js-protocol/ledger";
-import type {
-  AptorDurationContract,
-  AptorDurationProviders,
-  DeployedAptorDurationContract,
-} from "./types.js";
-import { aptorDurationPrivateStateKey } from "./types.js";
 
-export type PublicTransactionResult = Readonly<{
+import type {
+  AptorCredentialContract,
+  AptorCredentialProviders,
+  DeployedAptorCredentialContract,
+} from "./types.js";
+import { aptorCredentialPrivateStateKey } from "./types.js";
+
+export type PublicCredentialTransactionResult = Readonly<{
   txId: string;
   blockHeight: number;
   returnValue: readonly [];
 }>;
 
-export class AptorDurationApi {
+export class AptorCredentialApi {
   readonly contractAddress: ContractAddress;
   readonly deploymentTransaction: Readonly<{
     txId: string;
@@ -31,8 +32,8 @@ export class AptorDurationApi {
   }>;
 
   private constructor(
-    private readonly deployedContract: DeployedAptorDurationContract,
-    private readonly providers: AptorDurationProviders,
+    private readonly deployedContract: DeployedAptorCredentialContract,
+    private readonly providers: AptorCredentialProviders,
   ) {
     this.contractAddress =
       this.deployedContract.deployTxData.public.contractAddress;
@@ -46,25 +47,17 @@ export class AptorDurationApi {
   }
 
   static async deploy(
-    providers: AptorDurationProviders,
-    initialPrivateState: AptorDurationPrivateState,
-  ): Promise<AptorDurationApi> {
+    providers: AptorCredentialProviders,
+    initialPrivateState: AptorCredentialPrivateState,
+    acceptedIssuerPublicKey: JubjubPoint,
+  ): Promise<AptorCredentialApi> {
     const deployedContract = await deployContract(providers, {
-      compiledContract: compiledAptorDurationContract,
-      privateStateId: aptorDurationPrivateStateKey,
+      compiledContract: compiledAptorCredentialContract,
+      privateStateId: aptorCredentialPrivateStateKey,
       initialPrivateState,
+      args: [acceptedIssuerPublicKey],
     });
-    return new AptorDurationApi(deployedContract, providers);
-  }
-
-  static async deployWithDuration(
-    providers: AptorDurationProviders,
-    fixtureDurationMonths: number | bigint,
-  ): Promise<AptorDurationApi> {
-    return AptorDurationApi.deploy(
-      providers,
-      createDurationPrivateState(fixtureDurationMonths),
-    );
+    return new AptorCredentialApi(deployedContract, providers);
   }
 
   async publicState(): Promise<Ledger> {
@@ -79,13 +72,15 @@ export class AptorDurationApi {
     return ledger(state.data);
   }
 
-  async proveDuration(
+  async proveCredentialDuration(
     minimumDurationMonths: number | bigint,
-  ): Promise<PublicTransactionResult> {
-    const txData: FinalizedCallTxData<AptorDurationContract, "proveDuration"> =
-      await this.deployedContract.callTx.proveDuration(
-        BigInt(minimumDurationMonths),
-      );
+  ): Promise<PublicCredentialTransactionResult> {
+    const txData: FinalizedCallTxData<
+      AptorCredentialContract,
+      "proveCredentialDuration"
+    > = await this.deployedContract.callTx.proveCredentialDuration(
+      BigInt(minimumDurationMonths),
+    );
 
     return {
       txId: txData.public.txId,

@@ -1,7 +1,15 @@
 export type {
   AptorRole,
+  Bytes32,
+  IssuerSigningKey,
+  JubjubPoint,
+  JubjubSchnorrSignature,
+  PrivateCredentialBundle,
   ProofRequest,
   ProofRequirement,
   ProofRequirementResult,
+  PublicCredentialProofResult,
+  SignedDurationCredential,
+  UnsignedDurationCredential,
   WorkCredential,
 } from "./domain.js";

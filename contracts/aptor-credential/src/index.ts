@@ -3,13 +3,14 @@ import * as CompiledAptorContract from "../generated/aptor/contract/index.js";
 import * as Witnesses from "./witnesses.js";
 
 export * from "../generated/aptor/contract/index.js";
+export * from "./issuer.js";
 export * from "./witnesses.js";
 
-export const compiledAptorDurationContract = CompiledContract.make<
-  CompiledAptorContract.Contract<Witnesses.AptorDurationPrivateState>
+export const compiledAptorCredentialContract = CompiledContract.make<
+  CompiledAptorContract.Contract<Witnesses.AptorCredentialPrivateState>
 >(
-  "AptorDuration",
-  CompiledAptorContract.Contract<Witnesses.AptorDurationPrivateState>,
+  "AptorCredential",
+  CompiledAptorContract.Contract<Witnesses.AptorCredentialPrivateState>,
 ).pipe(
   CompiledContract.withWitnesses(Witnesses.witnesses),
   CompiledContract.withCompiledFileAssets("./generated/aptor"),

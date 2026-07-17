@@ -2,12 +2,14 @@
 
 ## Status
 
-This document defines the Aptor architecture. The first Compact primitive is now
-implemented under `contracts/aptor-credential`: it proves a private duration
-meets a public minimum and increments a public success counter. The
-`packages/aptor-midnight` integration binds that generated contract to the
-official provider stack for local deployment and proof-backed calls. The
-broader credential trust model below remains the target for later milestones.
+Milestone 3 implements an authenticated private credential under
+`contracts/aptor-credential`. An issuer signs a fixed-width, domain-separated
+credential containing an ID, holder commitment, and duration. Compact verifies
+that signature against a deployment-configured public key, proves holder-secret
+knowledge, checks the public duration threshold, and only then increments a
+temporary public success counter. `packages/aptor-midnight` runs the generated
+contract through the official local provider, proof, wallet, node, and indexer
+stack. Broader predicates and structured request receipts remain later work.
 
 ## System context
 
@@ -34,17 +36,30 @@ The issuer attests to work. Aptor and Midnight verify the attestation and its re
 
 ### 1. Credential creation
 
-The issuer enters the bounded `WorkCredential` attributes. The frontend validates ranges and required fields before canonical serialization. Exact canonical byte encoding must be fixed before signatures exist; changing field order or integer encoding after issuance would invalidate credentials.
+The reusable issuer utility creates a bounded `DurationCredential` with
+`credentialId: Bytes<32>`, `holderCommitment: Bytes<32>`, and
+`durationMonths: Uint<16>`. It rejects invalid widths and durations. The
+frontend is not connected to this utility yet.
 
 ### 2. Credential signing
 
-The issuer authorizes a commitment to the canonical credential. The preferred MVP shape is a real signature over a domain-separated credential commitment, including the credential ID, holder binding, issue time, and expiry.
-
-The exact signature primitive is intentionally unresolved. It must be selected from a pattern supported by Compact `0.31.x` and Midnight.js `4.1.x`, then proven with a small spike. If direct signature verification is impractical in the circuit, the fallback is an issuer-authorized on-chain credential commitment; that fallback must still preserve a real issuer authorization step and must be described accurately in the UI.
+The issuer signs
+`persistentHash(["aptor:duration-credential:v1", credentialId,
+holderCommitment, durationMonths])` using the Jubjub Schnorr construction from
+Midnight's official ZK Loan example. TypeScript and generated Compact runtime
+tests share a fixed digest vector. The accepted issuer public key is a
+constructor argument stored in public ledger state; the signing key remains
+outside the contract and private state.
 
 ### 3. Professional delivery and local storage
 
-The professional receives the credential payload and issuer authorization out of band. Private fields remain local. Browser `localStorage` is not acceptable for raw credentials. The integration milestone must choose either wallet-managed private state or an encrypted browser store whose key is not persisted alongside its ciphertext.
+The professional receives the credential, signature, and holder secret out of
+band. The private-state provider supplies those values only to the witness. A
+holder commitment is derived as
+`persistentHash(["aptor:holder:v1", holderSecret])` and is covered by the issuer
+signature. Browser `localStorage` is not acceptable for raw credentials. A
+future frontend milestone must choose wallet-managed private state or encrypted
+browser storage whose key is not persisted alongside its ciphertext.
 
 The foundation UI stores nothing and does not imply that a wallet is connected.
 
@@ -65,27 +80,35 @@ The professional evaluates compatible local credentials without revealing them t
 
 ### 6. Proof generation
 
-The Compact circuit is expected to receive the credential and authorization as private witness data, bind the credential to the professional, verify expiry and issuer acceptance, and evaluate only the requested predicates. The proof is generated locally through a compatible proof provider.
+The current `proveCredentialDuration(public minimumDurationMonths)` circuit
+receives the signed credential and holder secret as private witness data. It
+verifies issuer authorization, holder-secret binding, and the duration
+threshold. Real proofs are generated through the local HTTP proof provider.
+Expiry and additional predicates are not part of the current schema.
 
 ### 7. Proof verification
 
-The contract publishes or records only the minimum verification outcome bound to the request. The verifier reads the result from public contract state or a transaction result. Failed proof construction is not the same as a verified `false`; the UI must model connection, proving, rejection, and verified-result states separately.
+The current contract records only `successfulCredentialProofs`, a temporary
+counter used to confirm finalized state transitions. It is not bound to a
+verifier request and must not be presented as the final receipt model. Failed
+local circuit construction is not a verified `false`; the future UI must model
+connection, proving, rejection, and verified-result states separately.
 
 ## Expected Compact responsibilities
 
-The first proof contract should be intentionally narrow:
+The implemented contract is intentionally narrow:
 
-1. Maintain or reference accepted issuer keys/commitments.
-2. Bind a proof request to a stable request ID or commitment.
-3. Verify issuer authorization or membership of an issuer-authorized credential commitment.
-4. Verify credential integrity and holder binding.
-5. Enforce expiry using a network-derived or otherwise contract-bound time source.
-6. Evaluate the four supported predicates with bounded encodings.
-7. Disclose only requested booleans and opaque binding identifiers.
-8. Reject altered witness data, unknown issuers, holder mismatches, and expired credentials.
-9. Record a nullifier only if replay prevention is required by the chosen request lifecycle.
+1. Store one deployment-configured accepted issuer public key.
+2. Hash every signed field with fixed-width descriptors and domain separation.
+3. Verify issuer authorization inside Compact.
+4. Verify credential integrity and holder-secret binding.
+5. Evaluate one bounded private duration against a public minimum.
+6. Reject altered fields, unaccepted issuers, wrong holders, and low durations.
+7. Increment minimal public test instrumentation only after all assertions pass.
 
-The contract must not store project category, skills, duration, production status, exact rating, issuer identity, project identity, or the raw credential.
+The contract does not store project category, skills, duration, production
+status, exact rating, client/project identity, holder data, signatures, or the
+raw credential.
 
 ## Expected frontend responsibilities
 
@@ -102,15 +125,15 @@ The contract must not store project category, skills, duration, production statu
 ## Repository boundaries
 
 - `apps/web` owns presentation, role navigation, and future wallet/provider adapters.
-- `packages/shared` owns domain types and, later, canonical codecs and validators.
-- `packages/aptor-midnight` owns the focused local deployment and duration-call provider stack.
+- `packages/shared` owns typed credential and public-result boundaries.
+- `packages/aptor-midnight` owns local deployment and authenticated credential-call providers.
 - `contracts` owns hand-written Compact source; compiler output remains generated.
 - `scripts` owns repeatable compile, deploy, fixture, and E2E commands.
 - `docs` owns architectural decisions and the privacy threat model.
 
 ## Version-specific decisions
 
-Verified on 2026-07-16:
+Verified on 2026-07-17:
 
 | Component          | Local environment  | Latest tested official matrix | Decision                                                                                    |
 | ------------------ | ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------- |
@@ -134,9 +157,12 @@ Official references:
 
 The official quickstart currently requires compiler `0.31.0`, while the current compatibility matrix lists `0.31.1`. Aptor treats the compatibility matrix as the release-wide authority and records this documentation discrepancy as a risk rather than guessing.
 
-## Milestone 2 provider architecture
+## Milestone 3 provider architecture
 
 ```text
+Signed private credential + holder secret
+                 │
+                 ▼
 Generated Aptor contract + witnesses
                  │
                  ▼
@@ -161,18 +187,21 @@ any circuit call. Normal logs contain lifecycle events, addresses, transaction
 identifiers, and counters only; witness values and private transaction objects
 are not logged.
 
-The provider-backed test completed on 2026-07-16. The proof server recorded
-real `/check` and `/prove` requests, the node applied the corresponding
-transactions, and the indexer returned `SucceedEntirely` finalized data for the
-passing and exact-boundary calls.
+The provider-backed test completed on 2026-07-17. The proof server recorded real
+`/check` and `/prove` requests for signed passing and exact-boundary calls, the
+wallet submitted them, the node applied them, and the indexer returned finalized
+public state. Tampered duration, wrong holder, wrong issuer, and low duration
+were rejected during generated local circuit execution before a proof request
+or call transaction. See `CONTRACT_MILESTONE_3.md` for identifiers and the
+public-artifact privacy inspection.
 
 ## Architecture decisions still required
 
-1. Signature primitive and canonical credential encoding.
-2. Bounded skill representation and hash/commitment function.
-3. Holder-binding mechanism and identifier semantics.
-4. Contract-safe expiry time source.
-5. Whether request replay must be prevented and therefore needs a nullifier.
-6. Whether verifier predicates are public values or hidden behind a request commitment.
-7. Browser private-state provider and recovery story.
-8. Exact official full-DApp template to adopt after a local proof succeeds.
+1. Bounded skill representation and its membership construction.
+2. Signed encodings for production delivery and private client rating.
+3. Structured proof-request encoding, result binding, and replay policy.
+4. Contract-safe expiry time source and revocation design.
+5. Whether verifier predicates stay public or sit behind a request commitment.
+6. Browser private-state provider, key custody, and recovery story.
+7. Browser-wallet holder binding beyond the current credential-secret model.
+8. Migration to a native Compact signature verifier when officially available.

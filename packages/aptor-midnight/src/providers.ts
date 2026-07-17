@@ -4,12 +4,12 @@ import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
 import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
 import type { ProofProvider } from "@midnight-ntwrk/midnight-js-types";
-import type { AptorDurationPrivateState } from "@aptor/credential-contract";
+import type { AptorCredentialPrivateState } from "@aptor/credential-contract";
 import type { LocalMidnightConfig } from "./config.js";
 import type {
-  AptorDurationCircuitKey,
-  AptorDurationPrivateStateId,
-  AptorDurationProviders,
+  AptorCredentialCircuitKey,
+  AptorCredentialPrivateStateId,
+  AptorCredentialProviders,
 } from "./types.js";
 import type { LocalWalletProvider } from "./wallet.js";
 
@@ -34,8 +34,8 @@ export function createAptorProviders(
   walletProvider: LocalWalletProvider,
   fixtureId: string,
   metrics: ProofInvocationMetrics,
-): AptorDurationProviders {
-  const zkConfigProvider = new NodeZkConfigProvider<AptorDurationCircuitKey>(
+): AptorCredentialProviders {
+  const zkConfigProvider = new NodeZkConfigProvider<AptorCredentialCircuitKey>(
     config.zkConfigPath,
   );
   const databaseName = path.resolve(
@@ -46,8 +46,8 @@ export function createAptorProviders(
 
   return {
     privateStateProvider: levelPrivateStateProvider<
-      AptorDurationPrivateStateId,
-      AptorDurationPrivateState
+      AptorCredentialPrivateStateId,
+      AptorCredentialPrivateState
     >({
       midnightDbName: databaseName,
       privateStateStoreName: "private-states",

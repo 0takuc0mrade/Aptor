@@ -14,11 +14,11 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.build.json && cp -R generated dist/generated",
+    "build": "tsc --project tsconfig.build.json && cp -R generated/aptor/. dist/generated/aptor",
     "compact": "compact compile +0.31.1 src/aptor.compact generated/aptor",
-    "compact:check": "compact format --check src/aptor.compact",
+    "compact:check": "compact format --check src/aptor.compact src/schnorr.compact",
     "compact:fast": "compact compile +0.31.1 --skip-zk src/aptor.compact generated/aptor",
-    "test": "node test/duration.test.ts",
+    "test": "node test/credential.test.ts",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

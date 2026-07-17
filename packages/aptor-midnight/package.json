@@ -14,7 +14,7 @@
     "proof:up": "docker compose -f docker-compose.local.yml up -d --wait proof-server",
     "proof:down": "docker compose -f docker-compose.local.yml stop proof-server",
     "proof:logs": "docker compose -f docker-compose.local.yml logs --tail=200 proof-server",
-    "test:network:local": "npm run build:test --silent && node --test dist/test/duration.network.test.js",
+    "test:network:local": "npm run build:test --silent && node --test dist/test/credential.network.test.js",
     "test:local": "npm run network:up && npm run network:health && npm run test:network:local; status=$?; npm run network:down; exit $status",
     "build:test": "tsc --project tsconfig.test.json",
     "typecheck": "tsc --project tsconfig.json --noEmit"
