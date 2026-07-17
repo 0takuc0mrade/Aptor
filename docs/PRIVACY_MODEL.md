@@ -2,62 +2,77 @@
 
 ## Principle
 
-Private credential fields stay with the professional. The current proof uses
-them as witness data and discloses only whether a public duration threshold was
-satisfied. Milestone 3 does not yet bind results to a structured request.
+Aptor publishes the verifier's request and a one-time fulfillment receipt. The
+credential, holder material, specific accepted issuer, full skill set, and
+exact credential values remain private witness data.
 
-| Milestone 3 data             | Visibility                        | Location                                   | Proof use                          | Public artifact |
-| ---------------------------- | --------------------------------- | ------------------------------------------ | ---------------------------------- | --------------- |
-| `credentialId`               | Issuer and professional           | Signed private credential                  | Signature integrity                | No              |
-| `holderCommitment`           | Issuer and professional           | Signed private credential                  | Signed field and holder comparison | No              |
-| `durationMonths`             | Issuer and professional           | Signed private credential                  | Public-threshold comparison        | No              |
-| Issuer signature             | Issuer and professional           | Private credential bundle                  | Issuer authentication              | No              |
-| `holderSecret`               | Professional                      | Private credential bundle                  | Commitment knowledge               | No              |
-| Issuer signing key           | Issuer only                       | Ephemeral memory or ignored secret storage | Signing only; never a witness      | No              |
-| `acceptedIssuerPublicKey`    | Everyone                          | Contract ledger                            | Signature verification             | Yes             |
-| `minimumDurationMonths`      | Verifier, professional, observers | Circuit call input                         | Threshold bound                    | Yes             |
-| `successfulCredentialProofs` | Everyone                          | Contract ledger                            | Test instrumentation only          | Yes             |
-| Transaction metadata         | Everyone                          | Local network/indexer                      | Finalization                       | Yes             |
+| Milestone 4 data                     |            Public? | Purpose                                      |
+| ------------------------------------ | -----------------: | -------------------------------------------- |
+| Request ID and commitment            |                Yes | Registration and receipt binding             |
+| Accepted issuer Merkle root          |                Yes | Commits the verifier-approved set            |
+| Predicate flags and requested values |                Yes | Defines what success means                   |
+| Required canonical skill ID          | Yes when requested | Public requested capability                  |
+| Fulfilled request ID                 |                Yes | One-time verification receipt                |
+| Specific issuer public key           |                 No | Signature and private set-membership witness |
+| Issuer signature and path            |                 No | Credential authorization witness             |
+| Credential ID                        |                 No | Signed integrity field                       |
+| Holder secret and commitment         |                 No | Holder-knowledge binding                     |
+| Private skill root/list/path         |                 No | Skill membership witness                     |
+| Exact credential duration            |                 No | Compared with public minimum                 |
+| Credential production status         |       No raw field | Proved only when publicly required           |
+| Exact credential rating              |                 No | Compared with public minimum                 |
+| Issuer signing key                   | Never enters proof | Issuance only                                |
 
-## Local and private
+## Private witness
 
-- The raw credential and exact duration.
-- Credential ID, holder commitment, issuer signature, and holder secret.
-- Issuer signing key and the professional's credential inventory.
-- Wallet seeds, private keys, and private-state encryption keys.
+The Level private state contains `WorkCredentialV1`, the private issuer public
+key and signature, a depth-5 issuer membership path, holder secret, private
+canonical skill IDs, and a depth-5 selected-skill path. Witness functions return
+only the fixed bundle required by Compact and never log it.
 
-## Circuit witness
+## Public contract state
 
-The concrete witness bundle contains the canonical `DurationCredential`, its
-Jubjub Schnorr signature, and the 32-byte holder secret. The circuit verifies
-the signature against the public accepted issuer key, recomputes the holder
-commitment, and tests the signed duration. Witness values are not logged.
+- `requestCommitments: Map<Bytes<32>, Bytes<32>>`
+- `fulfilledRequests: Set<Bytes<32>>`
 
-## Public inputs and state
-
-- Contract and circuit identifiers plus normal transaction metadata.
-- The deployment-configured accepted issuer public key.
-- The public minimum duration supplied to the circuit.
-- The temporary successful-proof counter and empty circuit return.
-
-There is no public credential commitment, holder identifier, request ID,
-nullifier, timestamp, or raw signature in Milestone 3.
+There is no accepted issuer key, raw request object, credential commitment,
+success counter, holder identifier, skill root, signature, or exact credential
+attribute in ledger state.
 
 ## Selective disclosure
 
-For this milestone, a finalized successful call shows that the signed duration
-met one public minimum. It does not reveal the exact duration, credential ID,
-holder secret/commitment, signature, client identity, or project identity. The
-temporary counter is not yet a request-bound verification receipt.
+A successful receipt establishes that all enabled public criteria were
+satisfied. It does not publish independent booleans or the underlying values.
+When production delivery is required, success logically confirms that fact;
+when rating 450 is requested, the public intentionally learns “at least 4.50,”
+not the credential's exact rating.
 
-## Threats to test
+The accepted issuer root hides which member signed, but the verifier already
+knows the candidate set and may choose a singleton set. Set privacy therefore
+depends on the verifier's policy as well as cryptography.
 
-- Modify any signed field after issuance.
-- Substitute a different professional as holder.
-- Use an unknown issuer.
-- Add and test expiry once expiry is part of the signed schema.
-- Rebind or replay a result once structured requests exist.
-- Infer exact values from overly narrow or repeated threshold requests.
-- Exfiltrate raw credentials through logs, analytics, error traces, or browser storage.
+## Inspected surfaces
 
-Repeated adaptive requests can leak ranges even when each result is only a boolean. The MVP should rate-limit or expire requests at the product layer and document that selective disclosure does not eliminate inference attacks.
+Generated-runtime tests inspect circuit public input/output, transcript, return,
+and decoded ledger. Provider-backed tests inspect request/proof transactions,
+decoded ledger, raw public-data-provider results, public API results, and the
+deliberately public application log record. Findings are reported only for
+these available surfaces; validator-internal data is not claimed inspected.
+The scanner covers private field names, decoded scalar equality, embedded byte
+sequences, high-entropy scalar bytes in both byte orders, and hexadecimal
+string encodings.
+
+## Threats and limitations
+
+- Modify any signed credential field after issuance.
+- Alter any request field after commitment registration.
+- Substitute a holder secret or Merkle path.
+- Prove with an issuer outside the accepted root.
+- Replay an already fulfilled request.
+- Infer ranges with repeated or overly narrow public thresholds.
+- Use a singleton issuer set to remove practical issuer anonymity.
+- Exfiltrate witness data through logs, browser storage, analytics, or errors.
+- Treat possession of a holder secret as legal or wallet identity.
+
+Expiry, revocation, request expiration, browser custody, legal issuer identity,
+and anti-collusion policy remain outside Milestone 4.

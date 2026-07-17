@@ -1,14 +1,15 @@
 import {
   compiledAptorCredentialContract,
+  deriveProofRequestCommitment,
   ledger,
   type AptorCredentialPrivateState,
   type Ledger,
+  type ProofRequestV1,
 } from "@aptor/credential-contract";
 import {
   deployContract,
   type FinalizedCallTxData,
 } from "@midnight-ntwrk/midnight-js-contracts";
-import type { JubjubPoint } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
 import type { ContractAddress } from "@midnight-ntwrk/midnight-js-protocol/ledger";
 
 import type {
@@ -18,9 +19,19 @@ import type {
 } from "./types.js";
 import { aptorCredentialPrivateStateKey } from "./types.js";
 
-export type PublicCredentialTransactionResult = Readonly<{
+export type PublicRequestRegistrationResult = Readonly<{
   txId: string;
   blockHeight: number;
+  requestId: Uint8Array;
+  requestCommitment: Uint8Array;
+  returnValue: readonly [];
+}>;
+
+export type PublicProofReceiptResult = Readonly<{
+  txId: string;
+  blockHeight: number;
+  requestId: Uint8Array;
+  fulfilled: true;
   returnValue: readonly [];
 }>;
 
@@ -49,13 +60,11 @@ export class AptorCredentialApi {
   static async deploy(
     providers: AptorCredentialProviders,
     initialPrivateState: AptorCredentialPrivateState,
-    acceptedIssuerPublicKey: JubjubPoint,
   ): Promise<AptorCredentialApi> {
     const deployedContract = await deployContract(providers, {
       compiledContract: compiledAptorCredentialContract,
       privateStateId: aptorCredentialPrivateStateKey,
       initialPrivateState,
-      args: [acceptedIssuerPublicKey],
     });
     return new AptorCredentialApi(deployedContract, providers);
   }
@@ -72,19 +81,40 @@ export class AptorCredentialApi {
     return ledger(state.data);
   }
 
-  async proveCredentialDuration(
-    minimumDurationMonths: number | bigint,
-  ): Promise<PublicCredentialTransactionResult> {
+  async createProofRequest(
+    request: ProofRequestV1,
+  ): Promise<PublicRequestRegistrationResult> {
+    const requestCommitment = deriveProofRequestCommitment(request);
     const txData: FinalizedCallTxData<
       AptorCredentialContract,
-      "proveCredentialDuration"
-    > = await this.deployedContract.callTx.proveCredentialDuration(
-      BigInt(minimumDurationMonths),
+      "createProofRequest"
+    > = await this.deployedContract.callTx.createProofRequest(
+      request.requestId,
+      requestCommitment,
     );
 
     return {
       txId: txData.public.txId,
       blockHeight: txData.public.blockHeight,
+      requestId: new Uint8Array(request.requestId),
+      requestCommitment,
+      returnValue: txData.private.result,
+    };
+  }
+
+  async proveAgainstRequest(
+    request: ProofRequestV1,
+  ): Promise<PublicProofReceiptResult> {
+    const txData: FinalizedCallTxData<
+      AptorCredentialContract,
+      "proveAgainstRequest"
+    > = await this.deployedContract.callTx.proveAgainstRequest(request);
+
+    return {
+      txId: txData.public.txId,
+      blockHeight: txData.public.blockHeight,
+      requestId: new Uint8Array(request.requestId),
+      fulfilled: true,
       returnValue: txData.private.result,
     };
   }

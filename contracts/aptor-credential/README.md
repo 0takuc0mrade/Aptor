@@ -1,17 +1,18 @@
 # Aptor credential contract
 
-This package contains Aptor's authenticated private-duration Compact contract.
-It proves that the deployment-configured issuer signed an unmodified
-credential, the prover knows the credential's holder secret, and the signed
-private duration is greater than or equal to a public verifier minimum.
+This package contains Aptor's request-bound private capability contract. A
+verifier registers a commitment to a structured request. The professional then
+proves that one signed private credential satisfies every enabled requirement.
 
-`acceptedIssuerPublicKey` and the temporary
-`successfulCredentialProofs` counter are public ledger fields. The credential,
-signature, holder commitment, holder secret, and exact duration are private
-witness data. Every assertion succeeds before the counter changes.
+Public state contains only `requestCommitments` and `fulfilledRequests`. The
+specific issuer key, issuer and skill paths, signature, credential, holder
+material, private skill set, exact duration, production status, and exact
+rating remain witness data. A request is marked fulfilled only after every
+assertion succeeds.
 
-`issuer.ts` centralizes secure-random issuer and holder key material, canonical
-Compact-compatible hashing, credential creation, signing, and verification.
+`issuer.ts`, `merkle.ts`, and `request.ts` centralize secure-random issuer,
+holder and request material, skill normalization, Compact-compatible depth-5
+Merkle trees, fixed credential/request encodings, signing, and verification.
 The Compact Schnorr verifier follows Midnight's official ZK Loan example rather
 than introducing a separate cryptographic construction.
 
@@ -32,6 +33,6 @@ Generated compiler output is written to `generated/aptor/` and ignored by Git.
 It must be regenerated before TypeScript builds or tests.
 
 The compiled wrapper exported by this package is consumed by
-`packages/aptor-midnight`. See `docs/CONTRACT_MILESTONE_3.md` for the trust
-model, test vectors, real local proof and transaction evidence, privacy
+`packages/aptor-midnight`. See `docs/CONTRACT_MILESTONE_4.md` for the trust
+model, tree construction, real local proof and transaction evidence, privacy
 inspection, and limitations.

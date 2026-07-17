@@ -14,7 +14,16 @@ Aptor serves three end-user roles in one application. Professionals are the prim
 
 ## Product Purpose
 
-Aptor lets an issuer create a private work credential, a professional keep and use it locally, and a verifier confirm structured requirements through a selective proof. Success means a valid credential passes, an altered credential fails, and private client or project details never appear in public state or verifier output.
+Aptor lets an issuer create a private work credential, a professional keep and
+use it locally, and a verifier register a structured request. A successful
+request-bound proof establishes that every enabled requirement was satisfied by
+a credential signed by a key in the verifier's accepted issuer set. The receipt
+does not reveal which accepted issuer signed, the credential's exact values, or
+private client/project information.
+
+The cryptographic flow is implemented locally. The existing role interfaces
+are not yet connected to wallets, credential storage, or proof generation, and
+must not present fabricated activity while that integration remains pending.
 
 ## Positioning
 

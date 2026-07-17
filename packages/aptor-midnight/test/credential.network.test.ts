@@ -4,15 +4,23 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  buildAcceptedIssuerTree,
+  buildSkillTree,
+  canonicalSkillId,
   createCredentialPrivateState,
-  createDurationCredential,
   createHolderSecret,
   createIssuerKeyPair,
+  createProofRequest,
+  createWorkCredential,
   deriveHolderCommitment,
-  signCredential,
+  deriveIssuerMembershipPath,
+  deriveSkillMembershipPath,
+  signWorkCredential,
   type AptorCredentialPrivateState,
-  type DurationCredential,
   type IssuerKeyPair,
+  type ProofRequestV1,
+  type SkillTree,
+  type WorkCredentialV1,
 } from "@aptor/credential-contract";
 
 import {
@@ -33,13 +41,34 @@ type PublicInspectionFinding = Readonly<{
 type PrivateNeedles = Readonly<{
   bytes: readonly Uint8Array[];
   scalars: readonly bigint[];
+  encodedScalars?: readonly bigint[];
 }>;
 
-function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
-  return (
-    left.length === right.length &&
-    left.every((byte, index) => byte === right[index])
-  );
+type SignedNetworkBundle = Readonly<{
+  credential: WorkCredentialV1;
+  privateState: AptorCredentialPrivateState;
+  skillTree: SkillTree;
+}>;
+
+function containsBytes(haystack: Uint8Array, needle: Uint8Array): boolean {
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+  for (let start = 0; start <= haystack.length - needle.length; start += 1) {
+    if (needle.every((byte, index) => haystack[start + index] === byte)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function scalarEncodings(value: bigint): readonly Uint8Array[] {
+  const bigEndian = new Uint8Array(32);
+  let remaining = value;
+  for (let index = bigEndian.length - 1; index >= 0; index -= 1) {
+    bigEndian[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  if (remaining !== 0n) throw new RangeError("private scalar exceeds 32 bytes");
+  return [bigEndian, new Uint8Array(bigEndian).reverse()];
 }
 
 function inspectForPrivateArtifacts(
@@ -48,25 +77,39 @@ function inspectForPrivateArtifacts(
   currentPath = "public",
   findings: PublicInspectionFinding[] = [],
   seen = new WeakSet<object>(),
+  byteNeedles: readonly Uint8Array[] = [
+    ...needles.bytes,
+    ...(needles.encodedScalars ?? []).flatMap(scalarEncodings),
+  ],
 ): PublicInspectionFinding[] {
   if (typeof value === "bigint" && needles.scalars.includes(value)) {
     findings.push({ path: currentPath, reason: "private scalar matched" });
     return findings;
   }
-
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase();
+    if (
+      byteNeedles.some((needle) =>
+        normalized.includes(Buffer.from(needle).toString("hex")),
+      )
+    ) {
+      findings.push({
+        path: currentPath,
+        reason: "hex-encoded private bytes matched",
+      });
+    }
+    return findings;
+  }
   if (value instanceof Uint8Array) {
-    if (needles.bytes.some((needle) => equalBytes(value, needle))) {
+    if (byteNeedles.some((needle) => containsBytes(value, needle))) {
       findings.push({ path: currentPath, reason: "private bytes matched" });
     }
     return findings;
   }
-
   if (value === null || value === undefined || typeof value !== "object") {
     return findings;
   }
-  if (seen.has(value)) {
-    return findings;
-  }
+  if (seen.has(value)) return findings;
   seen.add(value);
 
   if (value instanceof Map) {
@@ -77,6 +120,7 @@ function inspectForPrivateArtifacts(
         `${currentPath}.map[${String(key)}]`,
         findings,
         seen,
+        byteNeedles,
       );
     }
     return findings;
@@ -84,7 +128,7 @@ function inspectForPrivateArtifacts(
 
   for (const [key, child] of Object.entries(value)) {
     if (
-      /^(credentialId|holderSecret|holderCommitment|issuerSignature|durationMonths)$/i.test(
+      /^(credentialId|holderSecret|holderCommitment|issuerPublicKey|issuerSignature|issuerMembershipPath|skillsRoot|privateSkills|requiredSkillMembershipPath|durationMonths|deliveredToProduction|clientRatingHundredths)$/i.test(
         key,
       )
     ) {
@@ -99,6 +143,7 @@ function inspectForPrivateArtifacts(
       `${currentPath}.${key}`,
       findings,
       seen,
+      byteNeedles,
     );
   }
   return findings;
@@ -109,41 +154,75 @@ function createMetrics(): ProofInvocationMetrics {
 }
 
 function createSignedBundle(
-  durationMonths: number | bigint,
   issuer: IssuerKeyPair,
-  holderSecret = createHolderSecret(),
-): Readonly<{
-  credential: DurationCredential;
-  privateState: AptorCredentialPrivateState;
-}> {
-  const credential = createDurationCredential({
+  acceptedIssuerTree: ReturnType<typeof buildAcceptedIssuerTree>,
+  issuerPathTree = acceptedIssuerTree,
+): SignedNetworkBundle {
+  const holderSecret = createHolderSecret();
+  const skillTree = buildSkillTree([
+    "Rust",
+    "Cryptography",
+    "Distributed Systems",
+  ]);
+  const credential = createWorkCredential({
     holderCommitment: deriveHolderCommitment(holderSecret),
-    durationMonths,
+    skillsRoot: skillTree.root,
+    durationMonths: 12n,
+    deliveredToProduction: true,
+    clientRatingHundredths: 475n,
   });
-  const signature = signCredential(credential, issuer.signingKey);
+  const issuerSignature = signWorkCredential(credential, issuer.signingKey);
   return {
     credential,
-    privateState: createCredentialPrivateState(
+    skillTree,
+    privateState: createCredentialPrivateState({
       credential,
-      signature,
+      issuerPublicKey: issuer.publicKey,
+      issuerSignature,
+      issuerMembershipPath: deriveIssuerMembershipPath(
+        issuerPathTree,
+        issuer.publicKey,
+      ),
       holderSecret,
-    ),
+      privateSkills: skillTree.leaves,
+      requiredSkillMembershipPath: deriveSkillMembershipPath(skillTree, "Rust"),
+    }),
   };
 }
 
-async function assertLocalCredentialRejection(
+function createCompleteRequest(
+  acceptedIssuerRoot: ReturnType<typeof buildAcceptedIssuerTree>["root"],
+  overrides: Partial<ProofRequestV1> = {},
+): ProofRequestV1 {
+  return {
+    ...createProofRequest({
+      acceptedIssuerRoot,
+      checkSkill: true,
+      requiredSkillId: canonicalSkillId("Rust"),
+      checkDuration: true,
+      minimumDurationMonths: 6n,
+      requireProductionDelivery: true,
+      checkClientRating: true,
+      minimumClientRatingHundredths: 450n,
+    }),
+    ...overrides,
+  };
+}
+
+async function assertLocalRequestRejection(
   contract: AptorCredentialApi,
+  request: ProofRequestV1,
   metrics: ProofInvocationMetrics,
   wallet: LocalWalletProvider,
   expectedError: RegExp,
 ): Promise<void> {
-  const counterBefore = (await contract.publicState())
-    .successfulCredentialProofs;
   const proofCallsBefore = metrics.proveTxCalls;
   const submissionsBefore = wallet.submittedTransactions;
+  const stateBefore = await contract.publicState();
+  assert.equal(stateBefore.fulfilledRequests.member(request.requestId), false);
 
   await assert.rejects(
-    contract.proveCredentialDuration(6n),
+    contract.proveAgainstRequest(request),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, expectedError);
@@ -161,27 +240,37 @@ async function assertLocalCredentialRejection(
     "local circuit rejection must not submit a transaction",
   );
   assert.equal(
-    (await contract.publicState()).successfulCredentialProofs,
-    counterBefore,
-    "rejected credential must not update public state",
+    (await contract.publicState()).fulfilledRequests.member(request.requestId),
+    false,
+    "failed request must remain unfulfilled",
   );
 }
 
 test(
-  "deploys Aptor, proves issuer-authenticated credentials, rejects tampering, and preserves privacy",
+  "registers and privately fulfills request-bound Aptor capability proofs",
   { timeout: 1_800_000 },
   async () => {
     await assertLocalNetworkHealthy();
     const config = localMidnightConfig();
-    const runId = `credential-network-${Date.now().toString(36)}`;
+    const runId = `capability-network-${Date.now().toString(36)}`;
     const privateStateRunRoot = path.resolve(config.privateStateRoot, runId);
     const wallet = await LocalWalletProvider.build(
       environmentConfiguration(config),
     );
-    const acceptedIssuer = createIssuerKeyPair();
+    const acceptedIssuers = [
+      createIssuerKeyPair(),
+      createIssuerKeyPair(),
+      createIssuerKeyPair(),
+    ];
+    const acceptedIssuerTree = buildAcceptedIssuerTree(
+      acceptedIssuers.map((issuer) => issuer.publicKey),
+    );
+    const passingBundle = createSignedBundle(
+      acceptedIssuers[1],
+      acceptedIssuerTree,
+    );
 
     try {
-      const passingBundle = createSignedBundle(12n, acceptedIssuer);
       const passingMetrics = createMetrics();
       const passingProviders = createAptorProviders(
         config,
@@ -192,60 +281,182 @@ test(
       const passingContract = await AptorCredentialApi.deploy(
         passingProviders,
         passingBundle.privateState,
-        acceptedIssuer.publicKey,
       );
-      const passingStateBefore = await passingContract.publicState();
-      assert.equal(passingStateBefore.successfulCredentialProofs, 0n);
-      assert.deepEqual(
-        passingStateBefore.acceptedIssuerPublicKey,
-        acceptedIssuer.publicKey,
-      );
+      const initialState = await passingContract.publicState();
+      assert.equal(initialState.requestCommitments.size(), 0n);
+      assert.equal(initialState.fulfilledRequests.size(), 0n);
 
-      const proofCallsBeforePassing = passingMetrics.proveTxCalls;
-      const submissionsBeforePassing = wallet.submittedTransactions;
-      const passingTransaction =
-        await passingContract.proveCredentialDuration(6n);
+      const passingRequest = createCompleteRequest(acceptedIssuerTree.root);
+      const requestProofCallsBefore = passingMetrics.proveTxCalls;
+      const requestSubmissionsBefore = wallet.submittedTransactions;
+      const requestTransaction =
+        await passingContract.createProofRequest(passingRequest);
       assert.equal(
         passingMetrics.proveTxCalls,
-        proofCallsBeforePassing + 1,
-        "the HTTP proof provider must be invoked",
+        requestProofCallsBefore + 1,
+        "request registration must use the proof provider",
       );
       assert.equal(
         wallet.submittedTransactions,
-        submissionsBeforePassing + 1,
-        "the proven transaction must be submitted",
+        requestSubmissionsBefore + 1,
+        "request registration must submit a transaction",
       );
-      assert.ok(passingTransaction.txId);
-      assert.equal(passingTransaction.returnValue.length, 0);
-      const passingStateAfter = await passingContract.publicState();
-      assert.equal(passingStateAfter.successfulCredentialProofs, 1n);
+      const registeredState = await passingContract.publicState();
+      assert.equal(
+        registeredState.requestCommitments.member(passingRequest.requestId),
+        true,
+      );
+      assert.deepEqual(
+        registeredState.requestCommitments.lookup(passingRequest.requestId),
+        requestTransaction.requestCommitment,
+      );
+      assert.equal(
+        registeredState.fulfilledRequests.member(passingRequest.requestId),
+        false,
+      );
 
-      const passingFinalizedData =
+      const proofCallsBefore = passingMetrics.proveTxCalls;
+      const submissionsBefore = wallet.submittedTransactions;
+      const proofTransaction =
+        await passingContract.proveAgainstRequest(passingRequest);
+      assert.equal(passingMetrics.proveTxCalls, proofCallsBefore + 1);
+      assert.equal(wallet.submittedTransactions, submissionsBefore + 1);
+      assert.equal(proofTransaction.fulfilled, true);
+      assert.ok(proofTransaction.txId);
+      const fulfilledState = await passingContract.publicState();
+      assert.equal(
+        fulfilledState.fulfilledRequests.member(passingRequest.requestId),
+        true,
+      );
+
+      const replayProofCalls = passingMetrics.proveTxCalls;
+      const replaySubmissions = wallet.submittedTransactions;
+      await assert.rejects(
+        passingContract.proveAgainstRequest(passingRequest),
+        /Proof request is already fulfilled/,
+      );
+      assert.equal(passingMetrics.proveTxCalls, replayProofCalls);
+      assert.equal(wallet.submittedTransactions, replaySubmissions);
+      assert.equal(
+        (await passingContract.publicState()).fulfilledRequests.member(
+          passingRequest.requestId,
+        ),
+        true,
+      );
+
+      const tamperedBaseRequest = createCompleteRequest(
+        acceptedIssuerTree.root,
+      );
+      const tamperedRegistration =
+        await passingContract.createProofRequest(tamperedBaseRequest);
+      const tamperedRequest = {
+        ...tamperedBaseRequest,
+        minimumClientRatingHundredths: 451n,
+      };
+      await assertLocalRequestRejection(
+        passingContract,
+        tamperedRequest,
+        passingMetrics,
+        wallet,
+        /does not match its registered commitment/,
+      );
+
+      const missingSkillRequest = createCompleteRequest(
+        acceptedIssuerTree.root,
+        { requiredSkillId: canonicalSkillId("Go") },
+      );
+      const missingSkillRegistration =
+        await passingContract.createProofRequest(missingSkillRequest);
+      await assertLocalRequestRejection(
+        passingContract,
+        missingSkillRequest,
+        passingMetrics,
+        wallet,
+        /Skill membership path is for a different skill/,
+      );
+
+      const untrustedIssuer = createIssuerKeyPair();
+      const untrustedPathTree = buildAcceptedIssuerTree([
+        untrustedIssuer.publicKey,
+        createIssuerKeyPair().publicKey,
+      ]);
+      const untrustedBundle = createSignedBundle(
+        untrustedIssuer,
+        acceptedIssuerTree,
+        untrustedPathTree,
+      );
+      const untrustedMetrics = createMetrics();
+      const untrustedProviders = createAptorProviders(
+        config,
+        wallet,
+        `${runId}/untrusted`,
+        untrustedMetrics,
+      );
+      const untrustedContract = await AptorCredentialApi.deploy(
+        untrustedProviders,
+        untrustedBundle.privateState,
+      );
+      const untrustedRequest = createCompleteRequest(acceptedIssuerTree.root);
+      const untrustedRegistration =
+        await untrustedContract.createProofRequest(untrustedRequest);
+      await assertLocalRequestRejection(
+        untrustedContract,
+        untrustedRequest,
+        untrustedMetrics,
+        wallet,
+        /Credential issuer is not in the accepted issuer set/,
+      );
+
+      const requestFinalizedData =
         await passingProviders.publicDataProvider.watchForTxData(
-          passingTransaction.txId,
+          requestTransaction.txId,
         );
-      const passingDeployData =
+      const proofFinalizedData =
         await passingProviders.publicDataProvider.watchForTxData(
-          passingContract.deploymentTransaction.txId,
+          proofTransaction.txId,
         );
       const passingPublicDataResponse =
         await passingProviders.publicDataProvider.queryContractState(
           passingContract.contractAddress,
         );
       const publicLogRecord = {
-        event: "authenticated_credential_proof_finalized",
+        event: "aptor_request_fulfilled",
         contractAddress: passingContract.contractAddress,
-        txId: passingTransaction.txId,
-        minimumDurationMonths: "6",
-        successfulCredentialProofs: "1",
+        requestId: Buffer.from(passingRequest.requestId).toString("hex"),
+        requestCommitment: Buffer.from(
+          requestTransaction.requestCommitment,
+        ).toString("hex"),
+        acceptedIssuerRoot: passingRequest.acceptedIssuerRoot.field.toString(),
+        checkSkill: passingRequest.checkSkill,
+        requiredSkillId: Buffer.from(passingRequest.requiredSkillId).toString(
+          "hex",
+        ),
+        minimumDurationMonths: passingRequest.minimumDurationMonths.toString(),
+        requireProductionDelivery: passingRequest.requireProductionDelivery,
+        minimumClientRatingHundredths:
+          passingRequest.minimumClientRatingHundredths.toString(),
+        txId: proofTransaction.txId,
+        fulfilled: true,
       };
-      const passingPrivacyFindings = inspectForPrivateArtifacts(
+      const nonRequestedSkills = passingBundle.skillTree.skills.filter(
+        (skill) => skill.normalized !== "rust",
+      );
+      const privatePathScalars = [
+        ...passingBundle.privateState.issuerMembershipPath.path.map(
+          (entry) => entry.sibling.field,
+        ),
+        ...passingBundle.privateState.requiredSkillMembershipPath.path.map(
+          (entry) => entry.sibling.field,
+        ),
+      ];
+      const privacyFindings = inspectForPrivateArtifacts(
         {
-          deploymentTransaction: passingDeployData,
-          callTransaction: passingFinalizedData,
-          contractLedger: passingStateAfter,
-          publicDataProviderResponse: passingPublicDataResponse,
-          contractApiReturnValue: passingTransaction.returnValue,
+          requestCreationTransaction: requestFinalizedData,
+          proofTransaction: proofFinalizedData,
+          decodedLedger: fulfilledState,
+          publicDataProviderResult: passingPublicDataResponse,
+          requestApiResult: requestTransaction,
+          proofApiResult: proofTransaction,
           applicationLog: publicLogRecord,
         },
         {
@@ -253,163 +464,70 @@ test(
             passingBundle.credential.credentialId,
             passingBundle.credential.holderCommitment,
             passingBundle.privateState.holderSecret,
+            ...nonRequestedSkills.map((skill) => skill.id),
           ],
           scalars: [
+            passingBundle.credential.skillsRoot.field,
             passingBundle.credential.durationMonths,
+            passingBundle.credential.clientRatingHundredths,
+            passingBundle.privateState.issuerPublicKey.x,
+            passingBundle.privateState.issuerPublicKey.y,
             passingBundle.privateState.issuerSignature.response,
             passingBundle.privateState.issuerSignature.announcement.x,
             passingBundle.privateState.issuerSignature.announcement.y,
+            ...privatePathScalars,
+          ],
+          encodedScalars: [
+            passingBundle.credential.skillsRoot.field,
+            passingBundle.privateState.issuerPublicKey.x,
+            passingBundle.privateState.issuerPublicKey.y,
+            passingBundle.privateState.issuerSignature.response,
+            passingBundle.privateState.issuerSignature.announcement.x,
+            passingBundle.privateState.issuerSignature.announcement.y,
+            ...privatePathScalars,
           ],
         },
       );
       assert.deepEqual(
-        passingPrivacyFindings,
+        privacyFindings,
         [],
-        "inspected public artifacts must not expose private credential data",
-      );
-
-      const boundaryBundle = createSignedBundle(6n, acceptedIssuer);
-      const boundaryMetrics = createMetrics();
-      const boundaryProviders = createAptorProviders(
-        config,
-        wallet,
-        `${runId}/boundary`,
-        boundaryMetrics,
-      );
-      const boundaryContract = await AptorCredentialApi.deploy(
-        boundaryProviders,
-        boundaryBundle.privateState,
-        acceptedIssuer.publicKey,
-      );
-      const boundaryProofCallsBefore = boundaryMetrics.proveTxCalls;
-      const boundarySubmissionsBefore = wallet.submittedTransactions;
-      const boundaryTransaction =
-        await boundaryContract.proveCredentialDuration(6n);
-      assert.equal(boundaryMetrics.proveTxCalls, boundaryProofCallsBefore + 1);
-      assert.equal(wallet.submittedTransactions, boundarySubmissionsBefore + 1);
-      assert.ok(boundaryTransaction.txId);
-      assert.equal(
-        (await boundaryContract.publicState()).successfulCredentialProofs,
-        1n,
-      );
-
-      const tamperedOriginal = createSignedBundle(12n, acceptedIssuer);
-      const tamperedState = createCredentialPrivateState(
-        { ...tamperedOriginal.credential, durationMonths: 24n },
-        tamperedOriginal.privateState.issuerSignature,
-        tamperedOriginal.privateState.holderSecret,
-      );
-      const tamperedMetrics = createMetrics();
-      const tamperedProviders = createAptorProviders(
-        config,
-        wallet,
-        `${runId}/tampered`,
-        tamperedMetrics,
-      );
-      const tamperedContract = await AptorCredentialApi.deploy(
-        tamperedProviders,
-        tamperedState,
-        acceptedIssuer.publicKey,
-      );
-      await assertLocalCredentialRejection(
-        tamperedContract,
-        tamperedMetrics,
-        wallet,
-        /Invalid issuer signature/,
-      );
-
-      const correctHolderBundle = createSignedBundle(12n, acceptedIssuer);
-      const wrongHolderState = createCredentialPrivateState(
-        correctHolderBundle.credential,
-        correctHolderBundle.privateState.issuerSignature,
-        createHolderSecret(),
-      );
-      const wrongHolderMetrics = createMetrics();
-      const wrongHolderProviders = createAptorProviders(
-        config,
-        wallet,
-        `${runId}/wrong-holder`,
-        wrongHolderMetrics,
-      );
-      const wrongHolderContract = await AptorCredentialApi.deploy(
-        wrongHolderProviders,
-        wrongHolderState,
-        acceptedIssuer.publicKey,
-      );
-      await assertLocalCredentialRejection(
-        wrongHolderContract,
-        wrongHolderMetrics,
-        wallet,
-        /Holder secret does not match the signed credential/,
-      );
-
-      const unacceptedIssuer = createIssuerKeyPair();
-      const wrongIssuerBundle = createSignedBundle(12n, unacceptedIssuer);
-      const wrongIssuerMetrics = createMetrics();
-      const wrongIssuerProviders = createAptorProviders(
-        config,
-        wallet,
-        `${runId}/wrong-issuer`,
-        wrongIssuerMetrics,
-      );
-      const wrongIssuerContract = await AptorCredentialApi.deploy(
-        wrongIssuerProviders,
-        wrongIssuerBundle.privateState,
-        acceptedIssuer.publicKey,
-      );
-      await assertLocalCredentialRejection(
-        wrongIssuerContract,
-        wrongIssuerMetrics,
-        wallet,
-        /Invalid issuer signature/,
-      );
-
-      const belowThresholdBundle = createSignedBundle(3n, acceptedIssuer);
-      const belowThresholdMetrics = createMetrics();
-      const belowThresholdProviders = createAptorProviders(
-        config,
-        wallet,
-        `${runId}/below-threshold`,
-        belowThresholdMetrics,
-      );
-      const belowThresholdContract = await AptorCredentialApi.deploy(
-        belowThresholdProviders,
-        belowThresholdBundle.privateState,
-        acceptedIssuer.publicKey,
-      );
-      await assertLocalCredentialRejection(
-        belowThresholdContract,
-        belowThresholdMetrics,
-        wallet,
-        /Signed private duration does not satisfy the public minimum/,
+        "inspected public artifacts must not expose private capability data",
       );
 
       console.info(
         JSON.stringify({
-          event: "aptor_midnight_authenticated_credential_result",
+          event: "aptor_midnight_request_bound_result",
           passing: {
             contractAddress: passingContract.contractAddress,
             deploymentTxId: passingContract.deploymentTransaction.txId,
-            callTxId: passingTransaction.txId,
-            counterBefore: "0",
-            counterAfter: "1",
-            proofProviderCalls: passingMetrics.proveTxCalls,
+            deploymentBlockHeight:
+              passingContract.deploymentTransaction.blockHeight,
+            requestCreationTxId: requestTransaction.txId,
+            requestCreationBlockHeight: requestTransaction.blockHeight,
+            proofTxId: proofTransaction.txId,
+            proofBlockHeight: proofTransaction.blockHeight,
+            requestRegistered: true,
+            requestFulfilled: true,
           },
-          boundary: {
-            contractAddress: boundaryContract.contractAddress,
-            callTxId: boundaryTransaction.txId,
-            counterBefore: "0",
-            counterAfter: "1",
+          replay: "local-circuit-before-proof",
+          tamperedRequest: {
+            requestCreationTxId: tamperedRegistration.txId,
+            failure: "local-circuit-before-proof",
+            fulfilled: false,
           },
-          rejected: {
-            tamperedCredential: "local-circuit-before-proof",
-            wrongHolder: "local-circuit-before-proof",
-            wrongIssuer: "local-circuit-before-proof",
-            belowThreshold: "local-circuit-before-proof",
-            countersChanged: false,
+          missingSkill: {
+            requestCreationTxId: missingSkillRegistration.txId,
+            failure: "local-circuit-before-proof",
+            fulfilled: false,
+          },
+          untrustedIssuer: {
+            contractAddress: untrustedContract.contractAddress,
+            requestCreationTxId: untrustedRegistration.txId,
+            failure: "local-circuit-before-proof",
+            fulfilled: false,
           },
           privacy: {
-            inspectedPublicArtifactFindings: passingPrivacyFindings.length,
+            inspectedPublicArtifactFindings: privacyFindings.length,
           },
         }),
       );

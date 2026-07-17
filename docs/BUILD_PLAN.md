@@ -1,78 +1,60 @@
 # Build plan
 
-## Implementation order
+## Completed contract milestones
 
-### 1. Prove one private predicate in Compact
+### 1. Private threshold foundation
 
-- [x] Align local Compact compiler `0.31.1` with the official compatibility matrix.
-- [x] Create the focused `contracts/aptor-credential` package.
-- [x] Confirm Compact language `0.23.0`, runtime `0.16.0`, generated TypeScript surface, and provable circuit metadata.
-- [x] Prove one private numeric threshold against a public bound at the generated contract-runtime layer.
-- [x] Generate the prover key, verifier key, ZKIR, and binary ZKIR.
-- [x] Automate passing, exact-boundary, failing, and public-surface privacy tests.
-- [x] Validate deployment, real proof generation, transaction finalization, and the public counter transition through the pinned local stack.
+- [x] Pin Compact and Midnight dependencies.
+- [x] Compile real prover/verifier assets.
+- [x] Deploy and finalize a local proof-backed transaction.
 
-**Exit:** compilation, generated provable-circuit execution, real proof-server
-requests, local deployment, finalized call transactions, counter transitions,
-and the failing no-submission path are repeatable.
+### 2. Provider-backed proof flow
 
-### 2. Add credential integrity and valid-credential success
+- [x] Connect node, indexer, proof server, wallet, and private-state providers.
+- [x] Distinguish local rejection from proof and transaction submission.
+- [x] Inspect returned public artifacts.
 
-- [x] Define fixed-width canonical credential encoding and domain separation.
-- [x] Use the official ZK Loan Jubjub Schnorr construction supported by the installed stack.
-- [x] Add a deployment-configured accepted issuer and private holder-secret binding.
-- [x] Create deterministic unit fixtures and ephemeral network fixtures without real client data.
+### 3. Authenticated private duration credential
 
-**Exit:** complete. A valid issuer-signed credential produced a real proof,
-finalized local transaction, and `successfulCredentialProofs` transition from
-0 to 1.
+- [x] Sign a fixed canonical credential with Jubjub Schnorr.
+- [x] Add one accepted issuer and holder-secret binding.
+- [x] Reject signed-field tampering, wrong holder, wrong issuer, and threshold failure.
 
-### 3. Make altered credentials fail
+### 4. Request-bound professional capability proof
 
-- [x] Change duration, holder commitment, and credential ID after signing.
-- [x] Test unaccepted issuer, wrong holder, threshold failure, and malformed bounds.
-- [x] Distinguish local circuit rejection from proof-server and transaction submission.
-- [ ] Add expiry tests only when expiry becomes part of the signed schema.
+- [x] Add `WorkCredentialV1` with skill root, duration, production, and rating.
+- [x] Normalize skills and prove membership in a private depth-5 skill tree.
+- [x] Hide the issuer behind a verifier-approved depth-5 issuer root.
+- [x] Register domain-separated structured request commitments.
+- [x] Replace the counter with request commitments and one-time receipts.
+- [x] Cover optional predicates, all tampering, duplicate requests, and replay.
+- [x] Record the final provider-backed identifiers and block-limit result in the
+      Milestone 4 report after the real LocalNet run.
 
-**Exit:** complete for the Milestone 3 schema. Automated unit and provider-backed
-tests show every supported alteration fails before public state changes.
+## Remaining product work
 
-### 4. Implement all requested thresholds
+### 5. Connect the existing frontend
 
-- Add bounded skill encoding and membership.
-- Add duration, production delivery, and rating predicates.
-- Disclose results only for predicates present in the request.
-- Test boundary values and omitted optional predicates.
+- Adopt the official browser wallet/DApp connector for the pinned stack.
+- Add wallet-backed Issuer, Professional, and Verifier sessions.
+- Connect credential issuance, request registration, proving, and receipts.
+- Add encrypted local credential storage and recovery behavior.
+- Remove all disconnected placeholders without fabricating activity.
 
-**Exit:** the four-condition example passes without revealing exact values.
+### 6. Harden credential lifecycle
 
-### 5. Integrate the frontend
+- Add expiry, revocation, issuer identity policy, and key rotation.
+- Add request expiration and authorization for request creation.
+- Rate-limit adaptive requests that could narrow private ranges.
+- Decide multi-skill and multi-credential proof composition.
 
-- Adopt the official browser wallet/DApp connector pattern compatible with the pinned stack.
-- Add credential and request forms with local validation.
-- Add encrypted local credential storage.
-- Add credential selection, proof progress, verified result, and actionable error states.
-- Keep simulations visibly labelled.
+### 7. Validate and prepare delivery
 
-**Exit:** the issuer → professional → verifier journey works end to end in one app.
-
-### 6. Polish the UI
-
-- Test keyboard navigation, focus, contrast, reduced motion, and 320/375/414/768 px widths.
-- Add loading, empty, error, and recovery states.
-- Remove debug data and ensure private attributes never enter logs or analytics.
-
-**Exit:** the product is understandable without explaining it live.
-
-### 7. Prepare the submission
-
-- Pin versions and document setup.
-- Record a short demo of valid success and altered failure.
-- Add architecture and privacy diagrams based on the implemented flow.
-- State real versus simulated components and known limitations.
-
-**Exit:** another developer can reproduce the demo from a clean checkout.
+- Complete keyboard, focus, contrast, reduced-motion, and responsive testing.
+- Add loading, empty, failure, recovery, and proof-progress states.
+- Record a reproducible demo from issuance through fulfilled receipt.
+- State real, simulated, and unsupported behavior in product copy.
 
 ## Exact next milestone
 
-> Expand the authenticated Aptor credential to support skill membership, production-delivery status and private client-rating thresholds, then bind each verification to a structured proof request.
+> Connect the existing Issuer, Professional and Verifier interfaces to the real Aptor contract, add wallet-backed role sessions and encrypted local credential storage, and complete the end-to-end browser workflow without fabricated data.

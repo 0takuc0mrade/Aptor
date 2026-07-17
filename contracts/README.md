@@ -3,10 +3,11 @@
 This directory contains Aptor's Compact source packages and generated-artifact
 boundaries.
 
-`aptor-credential/` implements Aptor's authenticated private-duration proof. An
-accepted issuer signs a domain-separated credential containing a holder
-commitment and duration. `proveCredentialDuration` verifies the signature,
-holder secret, and public minimum before changing public state.
+`aptor-credential/` implements Aptor's request-bound private capability proof.
+An issuer signs a credential containing a holder commitment, private skill
+root, duration, production status, and rating. The verifier registers a request
+commitment and accepted-issuer root; `proveAgainstRequest` verifies every
+enabled criterion and creates a one-time public fulfillment receipt.
 
 ## Verified local toolchain
 
@@ -25,4 +26,4 @@ own compatible node, indexer, wallet, and proof-server dependencies.
 Generated contract code, keys, and ZKIR content are ignored because they can be
 reproduced by the compiler and may include large cryptographic artifacts.
 
-See [`docs/CONTRACT_MILESTONE_3.md`](../docs/CONTRACT_MILESTONE_3.md).
+See [`docs/CONTRACT_MILESTONE_4.md`](../docs/CONTRACT_MILESTONE_4.md).

@@ -3,6 +3,7 @@
   "exclude": ["test/**/*.ts"],
   "compilerOptions": {
     "allowImportingTsExtensions": false,
-    "noEmit": false
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true
   }
 }

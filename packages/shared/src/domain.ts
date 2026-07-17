@@ -2,6 +2,8 @@ export type AptorRole = "issuer" | "professional" | "verifier";
 
 declare const bytes32Brand: unique symbol;
 declare const issuerSigningKeyBrand: unique symbol;
+declare const transactionIdBrand: unique symbol;
+declare const contractAddressBrand: unique symbol;
 
 export type Bytes32 = Uint8Array & {
   readonly [bytes32Brand]: "Bytes32";
@@ -9,6 +11,14 @@ export type Bytes32 = Uint8Array & {
 
 export type IssuerSigningKey = bigint & {
   readonly [issuerSigningKeyBrand]: "IssuerSigningKey";
+};
+
+export type TransactionId = string & {
+  readonly [transactionIdBrand]: "TransactionId";
+};
+
+export type ContractAddress = string & {
+  readonly [contractAddressBrand]: "ContractAddress";
 };
 
 export type JubjubPoint = Readonly<{
@@ -21,52 +31,66 @@ export type JubjubSchnorrSignature = Readonly<{
   response: bigint;
 }>;
 
-export type UnsignedDurationCredential = Readonly<{
-  credentialId: Bytes32;
-  holderCommitment: Bytes32;
-  durationMonths: bigint;
+export type MerkleTreeDigest = Readonly<{
+  field: bigint;
 }>;
 
-export type SignedDurationCredential = Readonly<{
-  credential: UnsignedDurationCredential;
+export type MerkleTreePath<T> = Readonly<{
+  leaf: T;
+  path: readonly Readonly<{
+    sibling: MerkleTreeDigest;
+    goes_left: boolean;
+  }>[];
+}>;
+
+export type WorkCredentialV1 = Readonly<{
+  credentialId: Bytes32;
+  holderCommitment: Bytes32;
+  skillsRoot: MerkleTreeDigest;
+  durationMonths: bigint;
+  deliveredToProduction: boolean;
+  clientRatingHundredths: bigint;
+}>;
+
+export type SignedWorkCredentialV1 = Readonly<{
+  credential: WorkCredentialV1;
   issuerSignature: JubjubSchnorrSignature;
 }>;
 
-export type PrivateCredentialBundle = SignedDurationCredential &
+export type PrivateCredentialBundleV1 = SignedWorkCredentialV1 &
   Readonly<{
+    issuerPublicKey: JubjubPoint;
+    issuerMembershipPath: MerkleTreePath<JubjubPoint>;
     holderSecret: Bytes32;
+    privateSkills: readonly Bytes32[];
+    requiredSkillMembershipPath: MerkleTreePath<Bytes32>;
   }>;
 
-export type PublicCredentialProofResult = Readonly<{
-  txId: string;
-  blockHeight: number;
+export type ProofRequestV1 = Readonly<{
+  requestId: Bytes32;
+  acceptedIssuerRoot: MerkleTreeDigest;
+  checkSkill: boolean;
+  requiredSkillId: Bytes32;
+  checkDuration: boolean;
   minimumDurationMonths: bigint;
-  successfulCredentialProofs: bigint;
+  requireProductionDelivery: boolean;
+  checkClientRating: boolean;
+  minimumClientRatingHundredths: bigint;
 }>;
 
-export type WorkCredential = {
-  credentialId: string;
-  holderId: string;
-  issuerId: string;
-  projectCategory: string;
-  skills: string[];
-  durationMonths: number;
-  deliveredToProduction: boolean;
-  clientRating: number;
-  issuedAt: number;
-  expiresAt: number;
-};
+export type RegisteredProofRequestV1 = Readonly<{
+  request: ProofRequestV1;
+  requestCommitment: Bytes32;
+  contractAddress: ContractAddress;
+  transactionId: TransactionId;
+  blockHeight: number;
+}>;
 
-export type ProofRequest = {
-  requiredSkill?: string;
-  minimumDurationMonths?: number;
-  requireProductionDelivery?: boolean;
-  minimumClientRating?: number;
-};
-
-export type ProofRequirement = keyof ProofRequest;
-
-export type ProofRequirementResult = {
-  requirement: ProofRequirement;
-  passed: boolean;
-};
+export type ProofReceiptV1 = Readonly<{
+  requestId: Bytes32;
+  requestCommitment: Bytes32;
+  fulfilled: true;
+  contractAddress: ContractAddress;
+  transactionId: TransactionId;
+  blockHeight: number;
+}>;

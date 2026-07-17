@@ -4,6 +4,8 @@ import * as Witnesses from "./witnesses.js";
 
 export * from "../generated/aptor/contract/index.js";
 export * from "./issuer.js";
+export * from "./merkle.js";
+export * from "./request.js";
 export * from "./witnesses.js";
 
 export const compiledAptorCredentialContract = CompiledContract.make<

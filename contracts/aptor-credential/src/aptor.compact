@@ -6,33 +6,99 @@ import "schnorr" prefix Schnorr_;
 
 export { Schnorr_SchnorrSignature };
 
-export struct DurationCredential {
+export struct WorkCredentialV1 {
   credentialId: Bytes<32>;
   holderCommitment: Bytes<32>;
+  skillsRoot: MerkleTreeDigest;
   durationMonths: Uint<16>;
+  deliveredToProduction: Boolean;
+  clientRatingHundredths: Uint<16>;
 }
 
-export ledger acceptedIssuerPublicKey: JubjubPoint;
-
-export ledger successfulCredentialProofs: Counter;
-
-witness getCredentialBundle(): [DurationCredential, Schnorr_SchnorrSignature, Bytes<32>];
-
-constructor(issuerPublicKey: JubjubPoint) {
-  acceptedIssuerPublicKey = disclose(issuerPublicKey);
+export struct ProofRequestV1 {
+  requestId: Bytes<32>;
+  acceptedIssuerRoot: MerkleTreeDigest;
+  checkSkill: Boolean;
+  requiredSkillId: Bytes<32>;
+  checkDuration: Boolean;
+  minimumDurationMonths: Uint<16>;
+  requireProductionDelivery: Boolean;
+  checkClientRating: Boolean;
+  minimumClientRatingHundredths: Uint<16>;
 }
+
+export ledger requestCommitments: Map<Bytes<32>, Bytes<32>>;
+
+export ledger fulfilledRequests: Set<Bytes<32>>;
+
+witness getCredentialBundle(): [WorkCredentialV1,
+                                JubjubPoint,
+                                Schnorr_SchnorrSignature,
+                                MerkleTreePath<5, JubjubPoint>,
+                                Bytes<32>,
+                                MerkleTreePath<5, Bytes<32>>];
 
 export pure circuit deriveHolderCommitment(holderSecret: Bytes<32>): Bytes<32> {
   return persistentHash<[Bytes<15>, Bytes<32>]>(["aptor:holder:v1", holderSecret]);
 }
 
-export pure circuit deriveCredentialDigest(credential: DurationCredential): Bytes<32> {
-  return persistentHash<[Bytes<28>, Bytes<32>, Bytes<32>, Uint<16>]>(
-           ["aptor:duration-credential:v1",
+export pure circuit deriveCanonicalSkillId(
+                      normalizedSkillBytes: Bytes<64>,
+                      normalizedSkillLength: Uint<8>
+                      ): Bytes<32> {
+  return persistentHash<[Bytes<17>, Bytes<64>, Uint<8>]>(
+           ["aptor:skill:id:v1", normalizedSkillBytes, normalizedSkillLength]
+           );
+}
+
+export pure circuit deriveWorkCredentialDigest(credential: WorkCredentialV1): Bytes<32> {
+  return persistentHash<[Bytes<24>,
+                         Bytes<32>,
+                         Bytes<32>,
+                         MerkleTreeDigest,
+                         Uint<16>,
+                         Boolean,
+                         Uint<16>]>(
+           ["aptor:work-credential:v1",
             credential.credentialId,
             credential.holderCommitment,
-            credential.durationMonths]
+            credential.skillsRoot,
+            credential.durationMonths,
+            credential.deliveredToProduction,
+            credential.clientRatingHundredths]
            );
+}
+
+export pure circuit deriveProofRequestCommitment(request: ProofRequestV1): Bytes<32> {
+  return persistentHash<[Bytes<22>,
+                         Bytes<32>,
+                         MerkleTreeDigest,
+                         Boolean,
+                         Bytes<32>,
+                         Boolean,
+                         Uint<16>,
+                         Boolean,
+                         Boolean,
+                         Uint<16>]>(
+           ["aptor:proof-request:v1",
+            request.requestId,
+            request.acceptedIssuerRoot,
+            request.checkSkill,
+            request.requiredSkillId,
+            request.checkDuration,
+            request.minimumDurationMonths,
+            request.requireProductionDelivery,
+            request.checkClientRating,
+            request.minimumClientRatingHundredths]
+           );
+}
+
+export pure circuit deriveSkillPathRoot(path: MerkleTreePath<5, Bytes<32>>): MerkleTreeDigest {
+  return merkleTreePathRoot<5, Bytes<32>>(path);
+}
+
+export pure circuit deriveIssuerPathRoot(path: MerkleTreePath<5, JubjubPoint>): MerkleTreeDigest {
+  return merkleTreePathRoot<5, JubjubPoint>(path);
 }
 
 circuit credentialSignatureMessage(digest: Bytes<32>): Vector<4, Field> {
@@ -49,18 +115,80 @@ export pure circuit schnorrChallenge(
   return Schnorr_schnorrChallenge(ann_x, ann_y, pk_x, pk_y, msg);
 }
 
-export circuit proveCredentialDuration(minimumDurationMonths: Uint<16>): [] {
-  const [credential, issuerSignature, holderSecret] = getCredentialBundle();
-  const digest = deriveCredentialDigest(credential);
-  const signingMessage = credentialSignatureMessage(digest);
+export circuit createProofRequest(requestId: Bytes<32>, requestCommitment: Bytes<32>): [] {
+  assert(!requestCommitments.member(disclose(requestId)), "Proof request already exists");
+  requestCommitments.insert(disclose(requestId), disclose(requestCommitment));
+}
 
-  Schnorr_schnorrVerify<4>(signingMessage, issuerSignature, acceptedIssuerPublicKey);
+export circuit proveAgainstRequest(request: ProofRequestV1): [] {
+  assert(request.checkSkill ||
+         request.checkDuration ||
+         request.requireProductionDelivery ||
+         request.checkClientRating,
+         "Proof request must enable at least one requirement"
+         );
+  assert(!request.checkClientRating || request.minimumClientRatingHundredths <= 500,
+         "Requested client rating must be between 0 and 500"
+         );
+
+  const disclosedRequestId = disclose(request.requestId);
+  const requestCommitment = deriveProofRequestCommitment(request);
+  assert(requestCommitments.member(disclosedRequestId), "Proof request is not registered");
+  assert(requestCommitments.lookup(disclosedRequestId) == disclose(requestCommitment),
+         "Proof request does not match its registered commitment"
+         );
+  assert(!fulfilledRequests.member(disclosedRequestId), "Proof request is already fulfilled");
+
+  const [credential,
+         issuerPublicKey,
+         issuerSignature,
+         issuerMembershipPath,
+         holderSecret,
+         skillMembershipPath] =
+          getCredentialBundle();
+
+  assert(credential.clientRatingHundredths <= 500,
+         "Credential client rating must be between 0 and 500"
+         );
+
+  const credentialDigest = deriveWorkCredentialDigest(credential);
+  const signingMessage = credentialSignatureMessage(credentialDigest);
+  Schnorr_schnorrVerify<4>(signingMessage, issuerSignature, issuerPublicKey);
+
+  assert(jubjubPointX(issuerMembershipPath.leaf) == jubjubPointX(issuerPublicKey) &&
+         jubjubPointY(issuerMembershipPath.leaf) == jubjubPointY(issuerPublicKey),
+         "Issuer membership path is for a different public key"
+         );
+  assert(deriveIssuerPathRoot(issuerMembershipPath) == request.acceptedIssuerRoot,
+         "Credential issuer is not in the accepted issuer set"
+         );
   assert(deriveHolderCommitment(holderSecret) == credential.holderCommitment,
          "Holder secret does not match the signed credential"
          );
-  assert(credential.durationMonths >= minimumDurationMonths,
-         "Signed private duration does not satisfy the public minimum"
-         );
 
-  successfulCredentialProofs.increment(1);
+  if (request.checkSkill) {
+    assert(skillMembershipPath.leaf == request.requiredSkillId,
+           "Skill membership path is for a different skill"
+           );
+    assert(deriveSkillPathRoot(skillMembershipPath) == credential.skillsRoot,
+           "Required skill is not in the signed credential"
+           );
+  }
+  if (request.checkDuration) {
+    assert(credential.durationMonths >= request.minimumDurationMonths,
+           "Signed private duration does not satisfy the request"
+           );
+  }
+  if (request.requireProductionDelivery) {
+    assert(credential.deliveredToProduction,
+           "Signed credential does not confirm production delivery"
+           );
+  }
+  if (request.checkClientRating) {
+    assert(credential.clientRatingHundredths >= request.minimumClientRatingHundredths,
+           "Signed private rating does not satisfy the request"
+           );
+  }
+
+  fulfilledRequests.insert(disclosedRequestId);
 }

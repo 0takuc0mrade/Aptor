@@ -1,26 +1,13 @@
-import { connect } from "node:net";
 import { localMidnightConfig } from "./config.js";
 
-function waitForTcp(url: URL, timeoutMs = 5_000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const socket = connect(
-      {
-        host: url.hostname,
-        port: Number(url.port),
-      },
-      () => {
-        socket.end();
-        resolve();
-      },
-    );
-
-    socket.setTimeout(timeoutMs);
-    socket.once("timeout", () => {
-      socket.destroy();
-      reject(new Error(`Timed out connecting to ${url.origin}`));
-    });
-    socket.once("error", reject);
+async function assertHttpServiceReachable(
+  url: URL,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutMs),
   });
+  await response.body?.cancel();
 }
 
 export async function assertLocalNetworkHealthy(): Promise<void> {
@@ -41,7 +28,7 @@ export async function assertLocalNetworkHealthy(): Promise<void> {
     );
   }
 
-  await waitForTcp(new URL(config.proofServer));
+  await assertHttpServiceReachable(new URL(config.proofServer));
   console.info("Midnight node healthy");
   console.info("Midnight indexer healthy");
   console.info("Proof server healthy");

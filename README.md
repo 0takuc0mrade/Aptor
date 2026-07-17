@@ -10,9 +10,9 @@ A previous client or employer issues a private work credential. A future employe
 
 Professionals often cannot show their strongest work because it belongs to a client or employer. Conventional references disclose too much, while a résumé asks a verifier to trust an unstructured claim. Aptor creates a middle path: an accepted issuer attests to structured work facts, and a zero-knowledge proof verifies only the facts a verifier asked about.
 
-Aptor verifies that an accepted issuer signed the private credential and that
-the credential satisfies a requested threshold. Aptor does not prove that the
-issuer's original claim was truthful.
+Aptor proves that a private credential was signed by an issuer within the
+verifier's accepted issuer set. It does not reveal which accepted issuer signed
+it, and it does not prove that the issuer's original statement was truthful.
 
 ## Roles
 
@@ -24,16 +24,20 @@ The MVP supports all three roles inside one application.
 
 ## MVP journey
 
-1. An issuer creates and signs a credential bound to the professional's secret.
-2. The professional receives its private credential and issuer signature.
-3. A verifier requests a public minimum duration.
-4. The professional proves the signed private duration meets that minimum.
-5. Midnight checks the issuer signature, holder-secret binding, and threshold.
-6. The public state records only the accepted issuer key and a temporary success counter.
-7. An altered credential, wrong holder, unaccepted issuer, or failing threshold is rejected.
+1. An issuer signs a credential containing a private skill-set root, duration,
+   production status, rating, and holder commitment.
+2. A verifier registers a commitment to one structured proof request and an
+   accepted-issuer Merkle root.
+3. The professional privately supplies the credential, holder secret, issuer
+   key and issuer/skill membership paths.
+4. Midnight verifies request integrity, issuer membership and signature,
+   holder binding, and every enabled capability predicate.
+5. A successful transaction marks that request ID fulfilled exactly once.
+6. The public sees the request and receipt, but not the credential or the
+   specific accepted issuer.
 
-Skills, ratings, production delivery, expiry, revocation, structured request
-receipts, browser-wallet binding, and frontend activation remain later work.
+Expiry, revocation, browser-wallet binding, encrypted browser storage, and
+frontend workflow activation remain later work.
 
 ## Repository structure
 
@@ -42,7 +46,7 @@ aptor/
 ├── apps/
 │   └── web/                 Next.js application shell
 ├── contracts/               Compact source and generated-artifact boundary
-│   └── aptor-credential/    Authenticated private-duration contract package
+│   └── aptor-credential/    Request-bound private capability contract package
 ├── docs/                    Architecture, privacy, scope, and build plan
 ├── packages/
 │   ├── aptor-midnight/       Local provider stack, deployment API, and network test
@@ -56,16 +60,16 @@ aptor/
 
 ## What is real and what is simulated
 
-| Area               | Implemented now                                                   | Later target                                             |
-| ------------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
-| Domain model       | Strict signed/private/public credential types                     | Shared request and frontend adapters                     |
-| Frontend           | Responsive role shell and routes; no credential flow              | Issuance, storage, request, and proof workflows          |
-| Credential signing | Real Jubjub Schnorr signing with secure ephemeral keys            | Durable issuer key management and rotation               |
-| Midnight contract  | Verifies issuer signature, holder secret, and duration threshold  | More predicates, expiry, revocation, and request binding |
-| Proof generation   | Real proof-server generation and finalized local transactions     | Supported browser provider flow                          |
-| Wallet             | Local genesis-funded development wallet in network tests only     | Official browser wallet/DApp connector                   |
-| Issuer onboarding  | Not implemented                                                   | Explicit trust and issuer-management policy              |
-| Proof results      | Temporary public success counter backed by finalized transactions | Structured, request-bound verification receipts          |
+| Area               | Implemented now                                                                | Later target                                      |
+| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Domain model       | Versioned credential, private bundle, request, registration, and receipt types | Frontend adapters and encrypted persistence       |
+| Frontend           | Responsive role shell and routes; no live credential flow                      | Issuance, storage, request, and proof workflows   |
+| Credential signing | Real Jubjub Schnorr signing with secure runtime keys                           | Durable issuer key management and rotation        |
+| Midnight contract  | Private issuer/skill membership and four request-bound predicates              | Expiry, revocation, and multi-credential policies |
+| Proof generation   | Real proof-server generation and finalized local transactions                  | Supported browser provider flow                   |
+| Wallet             | Local genesis-funded development wallet in network tests only                  | Official browser wallet/DApp connector            |
+| Issuer onboarding  | Verifier supplies an accepted-key root; legal identity is not established      | Domain/legal-identity verification                |
+| Proof results      | One public fulfillment receipt per registered request ID                       | Product-facing receipt lifecycle                  |
 
 ## Getting started
 
@@ -139,6 +143,7 @@ npm run build
 - [Contract milestone 1](docs/CONTRACT_MILESTONE_1.md)
 - [Contract milestone 2](docs/CONTRACT_MILESTONE_2.md)
 - [Contract milestone 3](docs/CONTRACT_MILESTONE_3.md)
+- [Contract milestone 4](docs/CONTRACT_MILESTONE_4.md)
 
 ## Security baseline
 
