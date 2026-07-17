@@ -1,0 +1,31 @@
+[
+  {
+    "date": "2026-07-16",
+    "scope": "landing",
+    "macrostructure": "Marquee Hero",
+    "theme": "Aptor midnight zine",
+    "theme_axes": "dark / grotesk-sans / cool",
+    "vibe": "cinematic private work broadcast",
+    "enrichment": "E1 full-bleed HLS film",
+    "brief": "Aptor end-user cinematic landing page"
+  },
+  {
+    "date": "2026-07-16",
+    "scope": "app",
+    "macrostructure": "Narrative Workflow",
+    "theme": "Aptor midnight zine",
+    "theme_axes": "dark / grotesk-sans / cool",
+    "vibe": "indie zine private proof ledger",
+    "enrichment": "none",
+    "brief": "Aptor multi-role indie editorial product redesign"
+  },
+  {
+    "date": "2026-07-15",
+    "macrostructure": "Workbench",
+    "theme": "custom",
+    "theme_axes": "dark / grotesk-sans / cool",
+    "vibe": "technical private restrained midnight",
+    "enrichment": "none",
+    "brief": "Aptor role-based foundation shell"
+  }
+]

@@ -1,0 +1,14 @@
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export ledger successfulProofs: Counter;
+
+witness durationMonths(): Uint<16>;
+
+export circuit proveDuration(minimumDurationMonths: Uint<16>): [] {
+  assert(durationMonths() >= minimumDurationMonths,
+         "Private duration does not satisfy the public minimum"
+         );
+  successfulProofs.increment(1);
+}

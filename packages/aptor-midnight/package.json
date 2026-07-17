@@ -1,0 +1,44 @@
+{
+  "name": "@aptor/midnight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "network:up": "docker compose -f docker-compose.local.yml up -d --wait",
+    "network:down": "docker compose -f docker-compose.local.yml down --remove-orphans",
+    "network:logs": "docker compose -f docker-compose.local.yml logs --tail=200",
+    "network:health": "npm run build --silent && node dist/src/health.js",
+    "proof:up": "docker compose -f docker-compose.local.yml up -d --wait proof-server",
+    "proof:down": "docker compose -f docker-compose.local.yml stop proof-server",
+    "proof:logs": "docker compose -f docker-compose.local.yml logs --tail=200 proof-server",
+    "test:network:local": "npm run build:test --silent && node --test dist/test/duration.network.test.js",
+    "test:local": "npm run network:up && npm run network:health && npm run test:network:local; status=$?; npm run network:down; exit $status",
+    "build:test": "tsc --project tsconfig.test.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aptor/credential-contract": "0.1.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/testkit-js": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "pino": "10.3.1",
+    "rxjs": "7.8.2",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "@types/ws": "8.18.1",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "date": "2026-07-16",
+  "framework": "Next.js 16 App Router",
+  "fontStack": "IBM Plex Sans Variable + JetBrains Mono Variable",
+  "palette": "Aptor midnight, violet, and cobalt OKLCH tokens",
+  "motion": "state feedback only",
+  "spacing": "4-point named token scale"
+}

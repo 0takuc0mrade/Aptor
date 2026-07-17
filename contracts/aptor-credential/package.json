@@ -1,0 +1,32 @@
+{
+  "name": "@aptor/credential-contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json && cp -R generated dist/generated",
+    "compact": "compact compile +0.31.1 src/aptor.compact generated/aptor",
+    "compact:check": "compact format --check src/aptor.compact",
+    "compact:fast": "compact compile +0.31.1 --skip-zk src/aptor.compact generated/aptor",
+    "test": "node test/duration.test.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "typescript": "6.0.3"
+  }
+}

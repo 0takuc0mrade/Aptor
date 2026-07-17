@@ -1,0 +1,37 @@
+{
+  "name": "aptor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Privacy-preserving work credential proofs on Midnight.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "contracts/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @aptor/web",
+    "contract:build": "npm --prefix contracts/aptor-credential run build",
+    "contract:compile": "npm --prefix contracts/aptor-credential run compact",
+    "contract:test": "npm --prefix contracts/aptor-credential test",
+    "contract:typecheck": "npm --prefix contracts/aptor-credential run typecheck",
+    "dev": "npm run dev --workspace @aptor/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm run lint --workspace @aptor/web",
+    "midnight:build": "npm run build --workspace @aptor/midnight",
+    "midnight:network:down": "npm run network:down --workspace @aptor/midnight",
+    "midnight:network:health": "npm run network:health --workspace @aptor/midnight",
+    "midnight:network:logs": "npm run network:logs --workspace @aptor/midnight",
+    "midnight:network:up": "npm run network:up --workspace @aptor/midnight",
+    "midnight:test:local": "npm run test:local --workspace @aptor/midnight",
+    "midnight:test:network": "npm run test:network:local --workspace @aptor/midnight",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "next": "16.2.10",
+    "prettier": "3.9.5"
+  }
+}
