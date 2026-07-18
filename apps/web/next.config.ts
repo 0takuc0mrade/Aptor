@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   distDir: process.env.APTOR_NEXT_DIST_DIR ?? ".next",
   transpilePackages: ["@aptor/browser", "@aptor/shared"],
+  serverExternalPackages: ["@aptor/delivery"],
   turbopack: {
     resolveAlias: {
       "isomorphic-ws": "@aptor/browser/isomorphic-ws",

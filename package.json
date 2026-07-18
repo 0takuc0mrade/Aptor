@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @aptor/web",
+    "delivery:migrate": "npm run migrate --workspace @aptor/delivery",
+    "delivery:test": "npm run test --workspace @aptor/delivery",
     "browser:e2e:prepare": "npm run contract:build && npm run build --workspace @aptor/browser && npm run midnight:build && node apps/web/e2e/prepare-local.mjs",
     "browser:test:local": "npm run midnight:network:up && npm run browser:e2e:prepare && npm run test:e2e:local --workspace @aptor/web; status=$?; npm run midnight:network:down; exit $status",
     "contract:build": "npm --prefix contracts/aptor-credential run build",

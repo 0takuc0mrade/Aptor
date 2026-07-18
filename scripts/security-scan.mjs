@@ -7,7 +7,9 @@ const sourceRoots = [
   "apps/web/src",
   "contracts/aptor-credential/src",
   "packages/aptor-browser/src",
+  "packages/aptor-delivery/src",
   "packages/aptor-midnight/src",
+  "packages/shared/src",
 ];
 const sourceExtensions = new Set([".compact", ".js", ".mjs", ".ts", ".tsx"]);
 const findings = [];
@@ -36,6 +38,16 @@ const checks = [
     name: "sensitive value sent to console",
     pattern:
       /console\.(?:log|info|debug|warn|error)\([^\n]*(?:holderSecret|issuerSigningKey|credential|witness|mnemonic|seedPhrase)/giu,
+  },
+  {
+    name: "request body sent to console",
+    pattern:
+      /console\.(?:log|info|debug|warn|error)\([^\n]*(?:request\.body|await\s+request\.(?:json|text)\(\))/giu,
+  },
+  {
+    name: "secret-bearing NEXT_PUBLIC environment variable",
+    pattern:
+      /NEXT_PUBLIC_[A-Z0-9_]*(?:ACCESS_TOKEN|PASSWORD|PRIVATE_KEY|SECRET|SEED|MNEMONIC)/gu,
   },
   {
     name: "literal holder secret",
@@ -70,6 +82,33 @@ for (const sourceRoot of sourceRoots) {
       }
     }
   }
+}
+
+const migrationSource = await readFile(
+  path.join(repositoryRoot, "packages/aptor-delivery/src/migrations.ts"),
+  "utf8",
+);
+for (const match of migrationSource.matchAll(
+  /\b(?:credential|credential_payload|holder_secret|issuer_signing_key|private_work_attributes|vault_password)\s+TEXT\b/giu,
+)) {
+  const line = migrationSource.slice(0, match.index).split("\n").length;
+  findings.push(
+    `packages/aptor-delivery/src/migrations.ts:${line} accidental plaintext private-data column`,
+  );
+}
+
+const apiRoute = await readFile(
+  path.join(repositoryRoot, "apps/web/src/app/api/delivery/[...path]/route.ts"),
+  "utf8",
+);
+if (
+  /\b(?:holderSecret|issuerSigningKey|issuerSignature|clientRatingHundredths|durationMonths|skills)\b/gu.test(
+    apiRoute,
+  )
+) {
+  findings.push(
+    "apps/web/src/app/api/delivery/[...path]/route.ts: private credential field referenced by route handler",
+  );
 }
 
 const rootEntries = await readdir(repositoryRoot, { withFileTypes: true });

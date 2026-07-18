@@ -19,11 +19,15 @@ import {
 
 const outputDirectory = path.resolve(".midnight", "browser-e2e");
 const outputPath = path.join(outputDirectory, "deployment.json");
+const deliveryDatabasePath = path.join(outputDirectory, "delivery.sqlite");
 const config = localMidnightConfig();
 const runId = `browser-deploy-${Date.now().toString(36)}`;
 const privateStateRoot = path.resolve(config.privateStateRoot, runId);
 
 await assertLocalNetworkHealthy();
+await rm(deliveryDatabasePath, { force: true });
+await rm(`${deliveryDatabasePath}-shm`, { force: true });
+await rm(`${deliveryDatabasePath}-wal`, { force: true });
 const wallet = await LocalWalletProvider.build(
   environmentConfiguration(config),
 );

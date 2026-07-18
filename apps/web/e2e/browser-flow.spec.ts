@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
@@ -220,6 +221,21 @@ async function saveDownload(
   return path;
 }
 
+async function createProfile(
+  page: Page,
+  handle: string,
+  displayName: string,
+  password: string,
+): Promise<void> {
+  await page.getByLabel("Aptor handle").fill(handle);
+  await page.getByLabel("Display name").fill(displayName);
+  await page
+    .getByLabel("Profile vault password", { exact: true })
+    .fill(password);
+  await page.getByLabel("Confirm password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Create Aptor profile" }).click();
+}
+
 test.beforeAll(async () => {
   wallet = await LocalWalletProvider.build(environmentConfiguration(config));
   connector = new DAppConnectorWalletAdapter(
@@ -238,20 +254,24 @@ test.afterAll(async () => {
   await wallet.stop();
 });
 
-test("encrypted browser vault lifecycle keeps IndexedDB ciphertext-only", async ({
+test("encrypted multi-role profile lifecycle keeps IndexedDB ciphertext-only", async ({
   browser,
 }, testInfo) => {
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
   await page.goto("/professional", { waitUntil: "networkidle" });
 
-  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
+  await page.getByLabel("Aptor handle").fill("vault-lifecycle");
+  await page.getByLabel("Display name").fill("Vault Lifecycle");
+  await page
+    .getByLabel("Profile vault password", { exact: true })
+    .fill(vaultPassword);
   await page
     .getByLabel("Confirm password", { exact: true })
     .fill(vaultPassword);
-  await page.getByRole("button", { name: "Create professional vault" }).click();
+  await page.getByRole("button", { name: "Create Aptor profile" }).click();
   await expect(
-    page.getByRole("heading", { name: "Credential vault" }),
+    page.getByRole("heading", { name: "Invite previous client" }),
   ).toBeVisible();
 
   const storedVault = await page.evaluate(async () => {
@@ -262,7 +282,7 @@ test("encrypted browser vault lifecycle keeps IndexedDB ciphertext-only", async 
     });
     try {
       const transaction = database.transaction("vaults", "readonly");
-      const get = transaction.objectStore("vaults").get("professional");
+      const get = transaction.objectStore("vaults").get("account");
       return await new Promise<unknown>((resolve, reject) => {
         get.onsuccess = () => resolve(get.result);
         get.onerror = () => reject(get.error);
@@ -274,53 +294,62 @@ test("encrypted browser vault lifecycle keeps IndexedDB ciphertext-only", async 
   const storedJson = JSON.stringify(storedVault);
   expect(storedJson).toContain('"ciphertext"');
   expect(storedJson).not.toContain("holderSecret");
-  expect(storedJson).not.toContain("credentials");
+  expect(storedJson).not.toContain("accessToken");
+  expect(storedJson).not.toContain("privateEncryptionKey");
 
   const backupPath = await saveDownload(
     page,
-    "Export encrypted backup",
+    "Export encrypted profile backup",
     testInfo,
-    "professional-vault-backup.json",
+    "profile-vault-backup.json",
   );
-  await page.getByRole("button", { name: "Lock vault" }).click();
+  await page.getByRole("button", { name: "Lock Aptor profile" }).click();
   await expect(
-    page.getByRole("heading", { name: "Unlock encrypted vault" }),
+    page.getByRole("heading", { name: "Unlock Aptor profile" }),
   ).toBeVisible();
   await page
-    .getByLabel("Vault password", { exact: true })
+    .getByLabel("Profile vault password", { exact: true })
     .fill("Incorrect password 2026!");
-  await page.getByRole("button", { name: "Unlock vault" }).click();
+  await page.getByRole("button", { name: "Unlock Aptor profile" }).click();
   await expect(page.locator(".form-message[role='alert']")).toContainText(
     "incorrect or the encrypted data was modified",
   );
-  await page.getByLabel("Vault password", { exact: true }).fill(vaultPassword);
-  await page.getByRole("button", { name: "Unlock vault" }).click();
+  await page
+    .getByLabel("Profile vault password", { exact: true })
+    .fill(vaultPassword);
+  await page.getByRole("button", { name: "Unlock Aptor profile" }).click();
   await expect(
-    page.getByRole("heading", { name: "Credential vault" }),
+    page.getByRole("heading", { name: "Invite previous client" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Delete local vault" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Delete local vault" })
+  const restoreContext = await browser.newContext({ acceptDownloads: true });
+  const restorePage = await restoreContext.newPage();
+  await restorePage.goto("/professional", { waitUntil: "networkidle" });
+  await expect(
+    restorePage.getByRole("heading", { name: "Create Aptor profile" }),
+  ).toBeVisible();
+  await restorePage
+    .getByText("Advanced · Restore encrypted profile backup")
+    .click();
+  await fileInput(restorePage, "Encrypted profile backup").setInputFiles(
+    backupPath,
+  );
+  await restorePage
+    .getByLabel("Backup password", { exact: true })
+    .fill(vaultPassword);
+  await restorePage
+    .getByRole("button", { name: "Restore encrypted profile" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Create encrypted vault" }),
+    restorePage.getByRole("heading", { name: "Invite previous client" }),
   ).toBeVisible();
-  await page.getByText("Restore an encrypted backup").click();
-  await fileInput(page, "Encrypted vault backup").setInputFiles(backupPath);
-  await page.getByLabel("Backup password", { exact: true }).fill(vaultPassword);
-  await page.getByRole("button", { name: "Restore encrypted backup" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Credential vault" }),
-  ).toBeVisible();
+  await restoreContext.close();
   await context.close();
 });
 
 test("three browser profiles complete the real Aptor LocalNet flow", async ({
   browser,
-}, testInfo) => {
+}) => {
   const professionalContext = await browser.newContext({
     acceptDownloads: true,
   });
@@ -329,58 +358,48 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
   const professional = await professionalContext.newPage();
   const issuer = await issuerContext.newPage();
   const verifier = await verifierContext.newPage();
+  const networkBodies: string[] = [];
+  for (const page of [professional, issuer, verifier]) {
+    page.on("request", (request) => {
+      const body = request.postData();
+      if (body !== null) networkBodies.push(body);
+    });
+  }
   await installOfficialLocalConnector(professional);
   await installOfficialLocalConnector(verifier);
 
   console.info("[browser-flow] creating professional identity");
   await professional.goto("/professional", { waitUntil: "networkidle" });
   console.info("[browser-flow] professional page loaded");
-  await professional
-    .getByLabel("Vault password", { exact: true })
-    .fill(vaultPassword);
-  await professional
-    .getByLabel("Confirm password", { exact: true })
-    .fill(vaultPassword);
-  await professional
-    .getByRole("button", { name: "Create professional vault" })
-    .click();
-  console.info("[browser-flow] professional vault created");
+  await createProfile(professional, "maya-chen", "Maya Chen", vaultPassword);
+  console.info("[browser-flow] professional profile created");
   await expect(
-    professional.getByRole("heading", { name: "Credential vault" }),
+    professional.getByRole("heading", { name: "Invite previous client" }),
   ).toBeVisible();
-  console.info("[browser-flow] exporting holder profile");
-  const holderPath = await saveDownload(
-    professional,
-    "Export holder profile",
-    testInfo,
-    "holder.aptor-holder.json",
-  );
-  console.info("[browser-flow] holder profile exported");
+  await professional
+    .getByRole("button", { name: "Create Issuer invite" })
+    .click();
+  const inviteLink = await professional
+    .getByLabel("Shareable invite link")
+    .inputValue();
+  expect(inviteLink).toContain("/invite/");
+  console.info("[browser-flow] one-time Issuer invitation created");
 
   console.info("[browser-flow] creating issuer identity and credential");
-  await issuer.goto("/issuer", { waitUntil: "networkidle" });
-  console.info("[browser-flow] issuer page loaded");
-  await issuer.getByLabel(/Display name/).fill("Northstar Studio");
-  await issuer
-    .getByLabel("Vault password", { exact: true })
-    .fill(issuerVaultPassword);
-  await issuer
-    .getByLabel("Confirm password", { exact: true })
-    .fill(issuerVaultPassword);
-  await issuer.getByRole("button", { name: "Create issuer vault" }).click();
-  console.info("[browser-flow] issuer vault created");
-  const issuerProfilePath = await saveDownload(
+  await issuer.goto(inviteLink, { waitUntil: "networkidle" });
+  await expect(
+    issuer.getByRole("heading", { name: /invited you to issue/ }),
+  ).toBeVisible();
+  await createProfile(
     issuer,
-    "Export issuer profile",
-    testInfo,
-    "issuer.aptor-issuer.json",
+    "northstar-studio",
+    "Northstar Studio",
+    issuerVaultPassword,
   );
-  console.info("[browser-flow] issuer profile exported");
-  await fileInput(issuer, "Professional holder profile").setInputFiles(
-    holderPath,
-  );
-  await expect(issuer.getByText(/Holder: apt_/)).toBeVisible();
-  console.info("[browser-flow] holder profile imported by issuer");
+  await issuer.getByRole("button", { name: "Accept invitation" }).click();
+  await issuer.waitForURL("**/issuer");
+  await expect(issuer.getByText(/Maya Chen/).first()).toBeVisible();
+  console.info("[browser-flow] invitation redeemed once by Issuer");
   await issuer
     .locator('textarea[name="skills"]')
     .fill("React, Accessibility, TypeScript");
@@ -399,41 +418,31 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
   ).toBeVisible();
   console.info("[browser-flow] credential reviewed");
   await issuer
-    .locator('input[name="transferPassphrase"]')
-    .fill(transferPassphrase);
-  const credentialPath = await saveDownload(
-    issuer,
-    "Sign and download credential",
-    testInfo,
-    "work.aptor-credential",
-  );
-  console.info("[browser-flow] credential encrypted and exported");
+    .getByRole("button", { name: "Sign and deliver credential" })
+    .click();
+  console.info("[browser-flow] credential encrypted and delivered in-app");
   await expect(issuer.locator(".form-message[role='status']")).toContainText(
-    "Credential signed and encrypted",
+    "Delivered to Professional inbox",
   );
 
-  console.info("[browser-flow] importing credential into professional vault");
-  await fileInput(professional, "Aptor credential package").setInputFiles(
-    credentialPath,
-  );
-  await professional
-    .locator('input[name="transferPassphrase"]')
-    .fill(transferPassphrase);
-  await professional
-    .getByRole("button", { name: "Verify and save credential" })
-    .click();
-  await expect(professional.getByRole("status").last()).toContainText(
-    "Credential signature and holder binding verified",
-  );
+  console.info("[browser-flow] accepting credential from Professional inbox");
+  await expect(
+    professional.getByRole("button", { name: "Verify and save" }),
+  ).toBeVisible({ timeout: 30_000 });
+  await professional.getByRole("button", { name: "Verify and save" }).click();
+  await expect(
+    professional.locator(".workspace-message[role='status']"),
+  ).toContainText("Issuer signature, and holder binding verified");
 
   console.info("[browser-flow] composing verifier request");
   await verifier.goto("/verifier", { waitUntil: "networkidle" });
-  await fileInput(verifier, "Accepted issuer profile").setInputFiles(
-    issuerProfilePath,
-  );
-  await expect(
-    verifier.getByText("Northstar Studio", { exact: true }),
-  ).toBeVisible();
+  await createProfile(verifier, "proof-lab", "Proof Lab", vaultPassword);
+  await verifier.getByLabel("Issuer Aptor handle").fill("northstar-studio");
+  await verifier.getByRole("button", { name: "Add trusted Issuer" }).click();
+  await expect(verifier.getByText("Northstar Studio").first()).toBeVisible();
+  await verifier.getByLabel("Professional Aptor handle").fill("maya-chen");
+  await verifier.getByRole("button", { name: "Select Professional" }).click();
+  await expect(verifier.getByText("@maya-chen").first()).toBeVisible();
   await verifier.getByLabel("Required skill", { exact: true }).fill("React");
   await verifier.getByLabel("Minimum duration", { exact: true }).check();
   await verifier.locator('input[name="minimumDurationMonths"]').fill("12");
@@ -444,7 +453,7 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
   await verifier.locator('input[name="minimumRating"]').fill("4.50");
   await verifier.getByRole("button", { name: "Review public request" }).click();
   await expect(
-    verifier.getByRole("heading", { name: "Complete public request" }),
+    verifier.getByRole("heading", { name: "Register and send" }),
   ).toBeVisible();
   console.info("[browser-flow] connecting verifier wallet");
   await expect(
@@ -452,37 +461,23 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
   ).toBeVisible();
   await verifier.getByRole("button", { name: "Connect wallet" }).click();
   await expect(verifier.getByText("Connected", { exact: true })).toBeVisible();
-  console.info("[browser-flow] registering request on LocalNet");
+  console.info("[browser-flow] registering and delivering request on LocalNet");
   await verifier
-    .getByRole("button", { name: "Register request on Midnight" })
+    .getByRole("button", { name: "Register and send request" })
     .click();
   await expect(verifier.getByRole("status").last()).toContainText(
     "Request registered in block",
-    {
-      timeout: 900_000,
-    },
+    { timeout: 900_000 },
   );
-  const requestPath = await saveDownload(
-    verifier,
-    "Download request package",
-    testInfo,
-    "request.aptor-request.json",
-  );
-  const requestPackage = JSON.parse(await readFile(requestPath, "utf8")) as {
-    request: { requestId: string };
-    registrationTransactionId: string;
-  };
 
-  console.info("[browser-flow] importing registered request");
-  await fileInput(professional, "Aptor request package").setInputFiles(
-    requestPath,
-  );
-  await expect(professional.getByRole("status").last()).toContainText(
-    "Registered request verified and saved",
-    {
-      timeout: 60_000,
-    },
-  );
+  console.info("[browser-flow] receiving registered request in-app");
+  await expect(
+    professional.getByRole("button", { name: "Review request" }),
+  ).toBeVisible({ timeout: 30_000 });
+  await professional.getByRole("button", { name: "Review request" }).click();
+  await expect(
+    professional.getByText("Compatible credentials: 1", { exact: true }),
+  ).toBeVisible({ timeout: 60_000 });
   await professional.getByRole("radio", { name: /Private credential/ }).check();
   await expect(
     professional.getByText("Wallet detected", { exact: true }),
@@ -497,7 +492,7 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
     .click();
   await expect(
     professional.getByText(
-      "Proof finalized. Only the registered request receipt is public.",
+      "Proof finalized. The Verifier will see the fulfilled receipt automatically.",
     ),
   ).toBeVisible({
     timeout: 900_000,
@@ -510,48 +505,49 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
     .textContent();
   expect(fulfillmentTransactionId).toBeTruthy();
 
-  console.info("[browser-flow] confirming replay rejection");
-  await professional.getByRole("button", { name: "Lock vault" }).click();
-  await professional
-    .getByLabel("Vault password", { exact: true })
-    .fill(vaultPassword);
-  await professional.getByRole("button", { name: "Unlock vault" }).click();
-  await professional.getByRole("radio", { name: /React/ }).first().check();
-  await professional.getByRole("radio", { name: /Private credential/ }).check();
-  await professional
-    .getByRole("button", { name: "Generate and submit proof" })
-    .click();
-  await expect(
-    professional.locator(".form-message[role='alert']"),
-  ).toContainText("already fulfilled", {
-    timeout: 60_000,
-  });
-
-  console.info("[browser-flow] querying public receipt");
-  await fileInput(verifier, "Aptor request package")
-    .last()
-    .setInputFiles(requestPath);
-  await verifier.getByRole("button", { name: "Query public state" }).click();
+  console.info("[browser-flow] waiting for automatic Verifier receipt update");
   await expect(
     verifier.getByText("Request fulfilled", { exact: true }),
   ).toBeVisible({
     timeout: 60_000,
   });
-  await expect(
-    verifier.getByRole("heading", {
-      name: "This registered request was satisfied by a valid Aptor credential from an issuer in the accepted issuer set.",
-    }),
-  ).toBeVisible();
 
   const localStorageKeys = await professional.evaluate(() =>
     Object.keys(localStorage),
   );
   expect(localStorageKeys).toEqual([]);
-  const publicRequestText = await readFile(requestPath, "utf8");
-  expect(publicRequestText).not.toContain("holderSecret");
-  expect(publicRequestText).not.toContain("issuerSigningKey");
-  expect(publicRequestText).not.toContain("issuerSignature");
-  expect(publicRequestText).not.toContain("credentialId");
+  expect(issuer.url()).not.toContain("/invite/");
+  const networkText = networkBodies.join("\n");
+  expect(networkText).not.toContain("Accessibility");
+  expect(networkText).not.toContain("holderSecret");
+  expect(networkText).not.toContain("issuerSigningKey");
+  expect(networkText).not.toContain("privateEncryptionKey");
+
+  const deliveryDatabase = new DatabaseSync(
+    resolve(repositoryRoot, ".midnight/browser-e2e/delivery.sqlite"),
+    { readOnly: true },
+  );
+  const storedEnvelopes = deliveryDatabase
+    .prepare("SELECT * FROM encrypted_envelopes ORDER BY created_at")
+    .all();
+  const requestTracking = deliveryDatabase
+    .prepare("SELECT * FROM request_tracking LIMIT 1")
+    .get() as
+    | {
+        request_id: string;
+        registration_transaction_id: string;
+        fulfillment_transaction_id: string;
+        public_status: string;
+      }
+    | undefined;
+  deliveryDatabase.close();
+  const databaseText = JSON.stringify(storedEnvelopes);
+  expect(storedEnvelopes).toHaveLength(2);
+  expect(databaseText).not.toContain("Accessibility");
+  expect(databaseText).not.toContain("durationMonths");
+  expect(databaseText).not.toContain("issuerSignature");
+  expect(databaseText).not.toContain("holderSecret");
+  expect(requestTracking?.public_status).toBe("fulfilled");
 
   console.info("[browser-flow] complete");
   console.info(
@@ -560,11 +556,11 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
       contractAddress: deployment.contractAddress,
       deploymentTransactionId: deployment.deploymentTransactionId,
       deploymentBlockHeight: deployment.deploymentBlockHeight,
-      requestId: requestPackage.request.requestId,
-      registrationTransactionId: requestPackage.registrationTransactionId,
+      requestId: requestTracking?.request_id,
+      registrationTransactionId: requestTracking?.registration_transaction_id,
       fulfillmentTransactionId,
       requestFulfilled: true,
-      replayRejectedBeforeProof: true,
+      deliveryEnvelopeCount: storedEnvelopes.length,
       localStorageSecretKeys: localStorageKeys.length,
     }),
   );
@@ -572,6 +568,71 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
   await professionalContext.close();
   await issuerContext.close();
   await verifierContext.close();
+});
+
+test("portable credential files remain an advanced browser fallback", async ({
+  browser,
+}, testInfo) => {
+  const professionalContext = await browser.newContext({
+    acceptDownloads: true,
+  });
+  const issuerContext = await browser.newContext({ acceptDownloads: true });
+  const professional = await professionalContext.newPage();
+  const issuer = await issuerContext.newPage();
+
+  await professional.goto("/professional", { waitUntil: "networkidle" });
+  await createProfile(
+    professional,
+    "portable-professional",
+    "Portable Professional",
+    vaultPassword,
+  );
+  await professional
+    .getByText("Advanced · Portable backup, import, or export")
+    .click();
+  const holderPath = await saveDownload(
+    professional,
+    "Export holder profile",
+    testInfo,
+    "portable-holder.json",
+  );
+
+  await issuer.goto("/issuer", { waitUntil: "networkidle" });
+  await createProfile(
+    issuer,
+    "portable-issuer",
+    "Portable Issuer",
+    issuerVaultPassword,
+  );
+  await issuer.getByText("Advanced · Portable backup and export").click();
+  await fileInput(issuer, "Professional holder profile").setInputFiles(
+    holderPath,
+  );
+  await issuer.locator('textarea[name="skills"]').fill("Documentation");
+  await issuer.getByLabel("Duration in months").fill("6");
+  await issuer.getByLabel("Client rating").fill("4.25");
+  await issuer.getByRole("button", { name: "Review credential" }).click();
+  await issuer.getByLabel("Transfer passphrase").fill(transferPassphrase);
+  const credentialPath = await saveDownload(
+    issuer,
+    "Export portable credential",
+    testInfo,
+    "portable-credential.json",
+  );
+
+  await fileInput(professional, "Aptor credential package").setInputFiles(
+    credentialPath,
+  );
+  await professional.getByLabel("Transfer passphrase").fill(transferPassphrase);
+  await professional
+    .getByRole("button", { name: "Verify portable credential" })
+    .click();
+  await expect(professional.getByRole("status").last()).toContainText(
+    "Portable credential verified and saved",
+  );
+
+  await professionalContext.close();
+  await issuerContext.close();
 });
 
 test("landing hero fits the standard laptop fold", async ({ browser }) => {

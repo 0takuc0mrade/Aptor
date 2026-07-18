@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app-shell";
+import { AptorAccountProvider } from "@/components/account-provider";
 
 import "./globals.css";
 
@@ -21,7 +22,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <AptorAccountProvider>
+          <AppShell>{children}</AppShell>
+        </AptorAccountProvider>
       </body>
     </html>
   );

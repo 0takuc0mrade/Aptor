@@ -20,26 +20,32 @@ it, and it does not prove that the issuer's original statement was truthful.
 - **Professional** — the credential holder who stores credentials locally, chooses one for a request, and generates a selective proof.
 - **Verifier** — a recruiter, client, or employer who creates a structured request and receives only verification results.
 
-The MVP supports all three roles as real, file-mediated browser workflows
-inside one application.
+One encrypted Aptor profile can use all three role workspaces. In-app
+invitations, encrypted inbox delivery, notifications, and automatic receipt
+monitoring are the default. Versioned files remain an advanced portability
+fallback.
 
-## MVP journey
+## Default journey
 
-1. A professional creates an encrypted local identity and exports a public
-   `.aptor-holder.json` profile.
-2. An issuer imports that profile, signs a credential, and exports an encrypted
-   `.aptor-credential` package.
-3. The professional decrypts and verifies the credential into an encrypted
-   IndexedDB vault.
-4. A verifier imports public issuer profiles, registers one structured request,
-   and exports `.aptor-request.json`.
-5. The professional validates the registered request, selects a compatible
-   private credential, and submits a real Midnight proof.
-6. The verifier queries the public one-time fulfillment receipt. The credential,
-   exact values, selected issuer, and holder secret remain private.
+Invite an employer, receive a private credential, receive a proof request, and
+prove your experience.
 
-Expiry, revocation, legal issuer identity, public share links, and backend
-recovery remain intentionally outside this MVP.
+1. A Professional creates one encrypted Aptor profile and sends a single-use
+   Issuer invitation.
+2. The Issuer accepts, signs bounded work facts locally, and encrypts the signed
+   credential to the Professional's public encryption key.
+3. The Professional decrypts, validates, and accepts the credential into the
+   encrypted IndexedDB account vault.
+4. A Verifier selects Aptor profiles, registers a structured request on
+   Midnight, and sends its encrypted package to the Professional inbox.
+5. Aptor matches compatible credentials locally. The Professional selects one
+   and submits the real request-bound proof with explicit wallet approval.
+6. The Verifier dashboard polls Midnight and automatically shows the fulfilled
+   receipt. The source credential never reaches the Verifier or Aptor server.
+
+Portable holder, Issuer, credential, and request files remain under Advanced.
+Expiry, revocation, legal Issuer verification, multi-device sync, and account
+recovery remain intentionally outside this milestone.
 
 ## Repository structure
 
@@ -53,6 +59,7 @@ aptor/
 ├── packages/
 │   ├── aptor-midnight/       Local provider stack, deployment API, and network test
 │   ├── aptor-browser/        Browser crypto, vaults, files, wallet, and contract APIs
+│   ├── aptor-delivery/       SQLite migrations, capability auth, encrypted routing
 │   └── shared/               Strict shared TypeScript domain types
 ├── scripts/                  Repository automation notes
 ├── .env.example             Non-secret endpoint placeholders
@@ -63,16 +70,17 @@ aptor/
 
 ## What is real and what is simulated
 
-| Area               | Implemented now                                                                    | Later target                                      |
-| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Domain model       | Runtime-validated holder, issuer, encrypted credential, request, and vault formats | Expiry and revocation formats                     |
-| Frontend           | Responsive Issuer, Professional, and Verifier workflows                            | Public share links and account sync               |
-| Credential signing | Real Jubjub Schnorr signing; encrypted issuer vault                                | Legal identity policy and key rotation            |
-| Midnight contract  | Private issuer/skill membership and four request-bound predicates                  | Expiry, revocation, and multi-credential policies |
-| Proof generation   | Real browser-triggered proofs and finalized LocalNet transactions                  | Public test-network deployment                    |
-| Wallet             | Official DApp Connector discovery and connected wallet API                         | Submission-network wallet compatibility matrix    |
-| Local storage      | AES-GCM/PBKDF2 IndexedDB vaults with backup, restore, lock, and delete             | Multi-device recovery                             |
-| Proof results      | Product-facing registration, fulfillment, query, and replay states                 | Shareable public receipt links                    |
+| Area               | Implemented now                                                                       | Later target                                      |
+| ------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Domain model       | Runtime-validated profiles, invitations, envelopes, credentials, requests, and vaults | Expiry and revocation formats                     |
+| Frontend           | Responsive Issuer, Professional, and Verifier workflows                               | Public share links and account sync               |
+| Credential signing | Real Jubjub Schnorr signing; encrypted issuer vault                                   | Legal identity policy and key rotation            |
+| Midnight contract  | Private issuer/skill membership and four request-bound predicates                     | Expiry, revocation, and multi-credential policies |
+| Proof generation   | Real browser-triggered proofs and finalized LocalNet transactions                     | Public test-network deployment                    |
+| Wallet             | Official DApp Connector discovery and connected wallet API                            | Submission-network wallet compatibility matrix    |
+| Local storage      | One AES-GCM/PBKDF2 IndexedDB account vault with every role state                      | Multi-device recovery                             |
+| Delivery service   | SQLite, hashed capabilities, ciphertext envelopes, notifications, status cache        | Hosted SQL adapter and production identity        |
+| Proof results      | Automatic registration, proof-submitted, and fulfilled states from chain queries      | Shareable public receipt links                    |
 
 ## Getting started
 
@@ -85,6 +93,7 @@ Requirements:
 
 ```bash
 npm install
+npm run delivery:migrate
 npm run dev
 ```
 
@@ -93,8 +102,8 @@ Professional, or Verifier workspace from the role navigation.
 
 Browser proof actions require the public `NEXT_PUBLIC_APTOR_*` values described
 in `.env.example`. The app uses the selected network and configured contract;
-it does not invent a deployment. Milestone 5 was validated on LocalNet through
-the official test adapter. No Preprod deployment is claimed.
+it does not invent a deployment. Milestone 6 remains a LocalNet milestone and
+does not deploy to Preprod.
 
 Compile and test the Compact contract:
 
@@ -163,6 +172,10 @@ npm run security:scan
 - [Contract milestone 3](docs/CONTRACT_MILESTONE_3.md)
 - [Contract milestone 4](docs/CONTRACT_MILESTONE_4.md)
 - [Product milestone 5](docs/PRODUCT_MILESTONE_5.md)
+- [Product milestone 6](docs/PRODUCT_MILESTONE_6.md)
+- [Delivery service](docs/DELIVERY_SERVICE.md)
+- [Envelope encryption](docs/ENVELOPE_ENCRYPTION.md)
+- [In-app user flow](docs/IN_APP_USER_FLOW.md)
 
 ## Security baseline
 
@@ -172,3 +185,8 @@ locally and copied to the web static boundary at build time; they contain no
 credential witness data. `.env.example` contains public placeholders only.
 Contract addresses and proof results must come from real deployments—not UI
 fixtures.
+
+The local delivery database is ignored. It contains routing and timing metadata,
+public profiles, request-tracking metadata, and encrypted envelope payloads. It
+does not contain plaintext credentials, vault passwords, private encryption
+keys, holder secrets, or Issuer signing keys.

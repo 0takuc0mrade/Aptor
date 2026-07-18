@@ -1,21 +1,27 @@
 "use client";
 
 import {
-  createIssuerVault,
   downloadPortableFile,
   encryptCredentialPackage,
+  encryptEnvelopePayload,
   issueCredential,
   parseHolderFile,
   serializePortableFile,
   type AptorHolderProfileV1,
 } from "@aptor/browser";
-import { useMemo, useState } from "react";
+import type { AptorProfileV1 } from "@aptor/shared";
+import { useEffect, useMemo, useState } from "react";
 
-import { useVaultSession } from "@/hooks/use-vault-session";
+import {
+  listInvitations,
+  sendEnvelope,
+  type AptorInvitationView,
+} from "@/lib/delivery-client";
 
+import { AccountToolbar, ProfileAccess } from "./profile-access";
+import { useAptorAccount } from "./account-provider";
 import { FileField } from "./file-field";
 import { RoleWorkspace, WorkflowSequence } from "./role-placeholder";
-import { VaultAccess, VaultToolbar } from "./vault-access";
 
 type CredentialDraft = Readonly<{
   skills: string[];
@@ -25,116 +31,145 @@ type CredentialDraft = Readonly<{
 }>;
 
 export function IssuerWorkspace() {
-  const vault = useVaultSession("issuer");
-  const [holder, setHolder] = useState<AptorHolderProfileV1 | null>(null);
+  const account = useAptorAccount();
+  const [portableHolder, setPortableHolder] =
+    useState<AptorHolderProfileV1 | null>(null);
+  const [invitations, setInvitations] = useState<AptorInvitationView[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
   const [draft, setDraft] = useState<CredentialDraft | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const profile = vault.value?.profile ?? null;
-  const issuanceCount = vault.value?.issuanceHistory.length ?? 0;
-  const holderLabel = useMemo(
-    () => (holder ? `${holder.profileId.slice(0, 12)}…` : "No holder loaded"),
-    [holder],
+
+  const acceptedInvitations = useMemo(
+    () => invitations.filter((invitation) => invitation.state === "redeemed"),
+    [invitations],
+  );
+  const recipient = useMemo(
+    () =>
+      acceptedInvitations.find(
+        (invitation) => invitation.creator?.profileId === selectedProfileId,
+      )?.creator ?? null,
+    [acceptedInvitations, selectedProfileId],
   );
 
-  const backup = async () => {
-    const container = await vault.exportBackup();
-    downloadPortableFile(
-      "aptor-issuer-vault-backup.json",
-      serializePortableFile(container),
-    );
-  };
+  useEffect(() => {
+    if (account.value === null) return;
+    const timeout = window.setTimeout(() => {
+      void listInvitations(
+        account.value!.privateProfile.accessToken,
+        "received",
+      )
+        .then((items) => {
+          setInvitations(items);
+          setSelectedProfileId(
+            (current) => current || items[0]?.creator?.profileId || "",
+          );
+        })
+        .catch((requestError: unknown) => {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Invitations could not be loaded.",
+          );
+        });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [account.value]);
+
+  const createCredential = (
+    professional: AptorProfileV1,
+    credentialDraft: CredentialDraft,
+  ) =>
+    issueCredential(account.value!.issuer, {
+      holderProfile: professional.holderProfile,
+      ...credentialDraft,
+    });
 
   return (
     <RoleWorkspace
-      description="Import a professional’s public holder profile, attest only to bounded work facts, review the credential, then sign and deliver it as an encrypted file."
+      description="Review accepted invitations, attest to bounded work facts, and send a signed credential directly to the Professional's encrypted inbox."
       headline="Issue work without exposing it."
-      privacyDetail="The issuer signing secret remains in the encrypted local vault. The professional receives an authenticated encrypted credential package; no credential is written to public state."
-      privacyStages={[
-        "Holder and work facts",
-        "Local signature",
-        "Public issuer key",
-      ]}
-      privacySummary="Credential details remain between issuer and professional."
+      privacyDetail="Aptor signs locally, encrypts to the recipient's public key with a fresh ephemeral key, and routes only ciphertext. Credential facts never reach the delivery service."
+      privacyStages={["Work facts", "Local signature", "Encrypted delivery"]}
+      privacySummary="Credential details remain between Issuer and Professional."
       role="Issuer"
       status={
-        vault.value
-          ? `${issuanceCount} credential${issuanceCount === 1 ? "" : "s"} signed from this vault.`
-          : "Issuer keys remain unavailable until the encrypted vault is unlocked."
+        account.value
+          ? `${acceptedInvitations.length} accepted invitation${acceptedInvitations.length === 1 ? "" : "s"} · ${account.value.issuer.issuanceHistory.length} issued`
+          : "Unlock the shared Aptor profile to review invitations."
       }
     >
-      {vault.value === null ? (
-        <VaultAccess
-          busy={vault.busy}
-          error={vault.error}
-          exists={vault.exists}
-          onCreate={async (password, displayName) => {
-            await vault.create(password, createIssuerVault(displayName));
-          }}
-          onRestore={async (value, password) => {
-            await vault.importBackup(value, password);
-          }}
-          onUnlock={vault.unlock}
-          role="issuer"
-        />
+      {account.value === null ? (
+        <ProfileAccess />
       ) : (
         <>
-          <section className="issuer-flow" aria-labelledby="issuer-flow-title">
+          <section
+            className="issuer-flow"
+            aria-labelledby="issuer-invitations-title"
+          >
             <header className="section-heading">
               <div>
-                <h2 id="issuer-flow-title">Issuer vault</h2>
-                <p>Key custody and public identity for this browser profile.</p>
+                <h2 id="issuer-invitations-title">Review invitations</h2>
+                <p>
+                  Choose the Professional who asked this Aptor profile to issue
+                  a credential.
+                </p>
               </div>
-              <span className="section-heading__state">Unlocked locally</span>
+              <span className="section-heading__state">
+                @{account.value.profile.handle}
+              </span>
             </header>
 
-            <dl className="credential-spec">
-              <div>
-                <dt>Display name</dt>
-                <dd>{profile?.displayName ?? "Not set"}</dd>
-                <span>Unverified metadata</span>
+            {acceptedInvitations.length === 0 ? (
+              <div className="empty-state">
+                <span aria-hidden="true" className="empty-state__mark">
+                  —
+                </span>
+                <div>
+                  <h3>No accepted invitation yet</h3>
+                  <p>
+                    Open a Professional’s Aptor invite link and accept it with
+                    this profile.
+                  </p>
+                </div>
               </div>
-              <div>
-                <dt>Issuer key</dt>
-                <dd className="mono-value" title={profile?.issuerPublicKey}>
-                  {profile?.issuerPublicKey.slice(0, 28)}…
-                </dd>
-                <span>Public</span>
+            ) : (
+              <div
+                className="selection-list"
+                role="radiogroup"
+                aria-label="Select Professional invitation"
+              >
+                {acceptedInvitations.map((invitation) => (
+                  <label key={invitation.invitationId}>
+                    <input
+                      checked={
+                        selectedProfileId === invitation.creator?.profileId
+                      }
+                      name="recipient"
+                      onChange={() =>
+                        setSelectedProfileId(
+                          invitation.creator?.profileId ?? "",
+                        )
+                      }
+                      type="radio"
+                    />
+                    <span>
+                      <strong>{invitation.creator?.displayName}</strong>
+                      <small>
+                        @{invitation.creator?.handle} · requested a private work
+                        credential
+                      </small>
+                    </span>
+                  </label>
+                ))}
               </div>
-              <div>
-                <dt>Issuance history</dt>
-                <dd>{issuanceCount}</dd>
-                <span>Encrypted locally</span>
-              </div>
-            </dl>
+            )}
 
             <p className="privacy-note">
-              Aptor verifies possession of this issuer key. It does not
-              independently verify the legal organisation behind it.
+              Signature verified means this Aptor profile signed the credential.
+              Aptor does not verify the profile’s legal business identity.
             </p>
-
-            <div className="button-row">
-              <button
-                className="action-button"
-                onClick={() => {
-                  if (profile === null) return;
-                  downloadPortableFile(
-                    `${profile.displayName?.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-") || "issuer"}.aptor-issuer.json`,
-                    serializePortableFile(profile),
-                  );
-                }}
-                type="button"
-              >
-                Export issuer profile
-              </button>
-            </div>
-
-            <VaultToolbar
-              busy={vault.busy}
-              onBackup={backup}
-              onDelete={vault.deleteLocal}
-              onLock={vault.lock}
-            />
+            <AccountToolbar />
           </section>
 
           <section
@@ -143,33 +178,16 @@ export function IssuerWorkspace() {
           >
             <header className="section-heading section-heading--compact">
               <div>
-                <h2 id="credential-create-title">Create work credential</h2>
-                <p>Only bounded evidence needed by Aptor is collected.</p>
+                <h2 id="credential-create-title">Issue credential</h2>
+                <p>
+                  {recipient
+                    ? `Encrypted for ${recipient.displayName} (@${recipient.handle}).`
+                    : portableHolder
+                      ? "Portable holder profile loaded. Export will require a transfer passphrase."
+                      : "Select an accepted invitation or import a portable holder profile."}
+                </p>
               </div>
             </header>
-
-            <FileField
-              accept="application/json,.aptor-holder.json"
-              help="Public holder profiles contain a commitment, never a holder secret."
-              label="Professional holder profile"
-              onText={(text) => {
-                try {
-                  setHolder(parseHolderFile(text));
-                  setDraft(null);
-                  setError("");
-                } catch (fileError) {
-                  setError(
-                    fileError instanceof Error
-                      ? fileError.message
-                      : "The holder profile could not be read.",
-                  );
-                }
-              }}
-            />
-
-            <p className="import-state">
-              <strong>Holder:</strong> {holderLabel}
-            </p>
 
             <form
               className="form-stack"
@@ -177,8 +195,10 @@ export function IssuerWorkspace() {
                 event.preventDefault();
                 setError("");
                 setSuccess("");
-                if (holder === null) {
-                  setError("Import the professional’s holder profile first.");
+                if (recipient === null && portableHolder === null) {
+                  setError(
+                    "Select an accepted invitation or import a portable holder profile first.",
+                  );
                   return;
                 }
                 const data = new FormData(event.currentTarget);
@@ -190,17 +210,13 @@ export function IssuerWorkspace() {
                   setError("Enter at least one skill.");
                   return;
                 }
-                const rating = Number(data.get("rating"));
-                const durationMonths = Number(data.get("durationMonths"));
-                if (!Number.isInteger(durationMonths)) {
-                  setError("Duration must be a whole number of months.");
-                  return;
-                }
                 setDraft({
                   skills,
-                  durationMonths,
+                  durationMonths: Number(data.get("durationMonths")),
                   deliveredToProduction: data.get("production") === "on",
-                  clientRatingHundredths: Math.round(rating * 100),
+                  clientRatingHundredths: Math.round(
+                    Number(data.get("rating")) * 100,
+                  ),
                 });
               }}
             >
@@ -245,19 +261,28 @@ export function IssuerWorkspace() {
                 <input name="production" type="checkbox" />
                 <span>Delivered to production</span>
               </label>
-              <button className="action-button" type="submit">
+              <button
+                className="action-button"
+                disabled={recipient === null && portableHolder === null}
+                type="submit"
+              >
                 Review credential
               </button>
             </form>
 
-            {draft !== null ? (
+            {draft !== null &&
+            (recipient !== null || portableHolder !== null) ? (
               <div className="review-sheet" aria-live="polite">
                 <p className="eyebrow">Signing review</p>
                 <h3>Confirm the complete private credential</h3>
                 <dl>
                   <div>
-                    <dt>Holder</dt>
-                    <dd>{holderLabel}</dd>
+                    <dt>Professional</dt>
+                    <dd>
+                      {recipient
+                        ? `${recipient.displayName} · @${recipient.handle}`
+                        : "Portable holder profile"}
+                    </dd>
                   </div>
                   <div>
                     <dt>Skills</dt>
@@ -278,92 +303,66 @@ export function IssuerWorkspace() {
                     </dd>
                   </div>
                 </dl>
-                <form
-                  className="form-stack"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (vault.value === null || holder === null) return;
-                    const form = event.currentTarget;
-                    const passphrase = String(
-                      new FormData(form).get("transferPassphrase") ?? "",
-                    );
-                    setError("");
-                    setSuccess("");
-                    void (async () => {
-                      const credential = issueCredential(vault.value!, {
-                        holderProfile: holder,
-                        ...draft,
-                      });
-                      const encrypted = await encryptCredentialPackage(
-                        credential,
-                        passphrase,
-                      );
-                      const nextVault = {
-                        ...vault.value!,
-                        issuanceHistory: [
-                          ...vault.value!.issuanceHistory,
-                          {
-                            credentialId: credential.credential.credentialId,
-                            holderProfileId: credential.holderProfileId,
-                            issuedAt: credential.issuedAt,
-                          },
-                        ],
-                      };
-                      await vault.save(nextVault);
-                      downloadPortableFile(
-                        `${credential.credential.credentialId.slice(0, 12)}.aptor-credential`,
-                        serializePortableFile(encrypted),
-                      );
-                      form.reset();
-                      setDraft(null);
-                      setSuccess(
-                        "Credential signed and encrypted. Share the transfer passphrase outside Aptor.",
-                      );
-                    })().catch((signingError: unknown) => {
-                      setError(
-                        signingError instanceof Error
-                          ? signingError.message
-                          : "The credential could not be signed.",
-                      );
-                    });
-                  }}
-                >
-                  <label className="field">
-                    <span>Transfer passphrase</span>
-                    <input
-                      autoComplete="new-password"
-                      minLength={12}
-                      name="transferPassphrase"
-                      required
-                      type="password"
-                    />
-                    <small>
-                      Share this separately with the professional. It is never
-                      included in the credential file.
-                    </small>
-                  </label>
+                {recipient ? (
                   <button
                     className="action-button"
-                    disabled={vault.busy}
-                    type="submit"
+                    disabled={account.busy}
+                    onClick={() => {
+                      setError("");
+                      setSuccess("");
+                      void (async () => {
+                        const credential = createCredential(recipient, draft);
+                        const envelope = await encryptEnvelopePayload(
+                          credential,
+                          account.value!.profile.profileId,
+                          recipient.profileId,
+                          "work_credential",
+                          recipient.publicEncryptionKey,
+                        );
+                        await sendEnvelope(
+                          account.value!.privateProfile.accessToken,
+                          envelope,
+                        );
+                        await account.save({
+                          ...account.value!,
+                          issuer: {
+                            ...account.value!.issuer,
+                            issuanceHistory: [
+                              ...account.value!.issuer.issuanceHistory,
+                              {
+                                credentialId:
+                                  credential.credential.credentialId,
+                                holderProfileId: credential.holderProfileId,
+                                issuedAt: credential.issuedAt,
+                              },
+                            ],
+                          },
+                        });
+                        setDraft(null);
+                        setSuccess(
+                          "Credential encrypted for recipient. Delivered to Professional inbox.",
+                        );
+                      })().catch((deliveryError: unknown) => {
+                        setError(
+                          deliveryError instanceof Error
+                            ? deliveryError.message
+                            : "The credential could not be delivered.",
+                        );
+                      });
+                    }}
+                    type="button"
                   >
-                    {vault.busy
-                      ? "Encrypting credential…"
-                      : "Sign and download credential"}
+                    {account.busy
+                      ? "Encrypting and delivering…"
+                      : "Sign and deliver credential"}
                   </button>
-                </form>
+                ) : (
+                  <p className="privacy-note">
+                    Open Advanced below to export this signed credential as an
+                    encrypted portable file.
+                  </p>
+                )}
               </div>
-            ) : null}
-
-            {error ? (
-              <p className="form-message form-message--error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            {success ? (
-              <p className="form-message form-message--success" role="status">
-                {success}
-              </p>
             ) : null}
           </section>
 
@@ -374,28 +373,131 @@ export function IssuerWorkspace() {
             <header className="section-heading section-heading--compact">
               <div>
                 <h2 id="issue-path-title">Issue path</h2>
-                <p>Each handoff is explicit and file-based.</p>
+                <p>The default handoff stays inside Aptor.</p>
               </div>
             </header>
             <WorkflowSequence
               steps={[
                 {
-                  title: "Import holder",
-                  detail: "Read the professional’s public commitment profile.",
+                  title: "Accept invitation",
+                  detail:
+                    "Use the Professional's public holder profile and encryption key.",
                 },
                 {
                   title: "Review and sign",
                   detail:
-                    "Confirm bounded work facts before using the issuer key.",
+                    "Confirm bounded facts before using the local Issuer key.",
                 },
                 {
-                  title: "Transfer securely",
-                  detail:
-                    "Download encrypted credential; share its passphrase separately.",
+                  title: "Encrypt and deliver",
+                  detail: "Send ciphertext directly to the Professional inbox.",
                 },
               ]}
             />
+
+            <details className="advanced-panel">
+              <summary>Advanced · Portable backup and export</summary>
+              <div className="import-panel">
+                <FileField
+                  accept="application/json,.aptor-holder.json"
+                  help="Portable fallback for a Professional outside the in-app invitation flow."
+                  label="Professional holder profile"
+                  onText={(text) => {
+                    try {
+                      setPortableHolder(parseHolderFile(text));
+                      setError("");
+                    } catch (fileError) {
+                      setError(
+                        fileError instanceof Error
+                          ? fileError.message
+                          : "The holder profile could not be read.",
+                      );
+                    }
+                  }}
+                />
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    downloadPortableFile(
+                      `${account.value!.profile.handle}.aptor-issuer.json`,
+                      serializePortableFile(account.value!.issuer.profile),
+                    )
+                  }
+                  type="button"
+                >
+                  Export issuer profile
+                </button>
+                {draft !== null && portableHolder !== null ? (
+                  <form
+                    className="form-stack"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const form = event.currentTarget;
+                      const passphrase = String(
+                        new FormData(form).get("transferPassphrase") ?? "",
+                      );
+                      void (async () => {
+                        const credential = issueCredential(
+                          account.value!.issuer,
+                          {
+                            holderProfile: portableHolder,
+                            ...draft,
+                          },
+                        );
+                        const encrypted = await encryptCredentialPackage(
+                          credential,
+                          passphrase,
+                        );
+                        downloadPortableFile(
+                          `${credential.credential.credentialId.slice(0, 12)}.aptor-credential`,
+                          serializePortableFile(encrypted),
+                        );
+                      })().catch((portableError: unknown) =>
+                        setError(
+                          portableError instanceof Error
+                            ? portableError.message
+                            : "Portable export failed.",
+                        ),
+                      );
+                    }}
+                  >
+                    <label className="field">
+                      <span>Transfer passphrase</span>
+                      <input
+                        minLength={12}
+                        name="transferPassphrase"
+                        required
+                        type="password"
+                      />
+                    </label>
+                    <button
+                      className="action-button action-button--secondary"
+                      type="submit"
+                    >
+                      Export portable credential
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </details>
           </section>
+
+          {error ? (
+            <p
+              className="workspace-message form-message form-message--error"
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
+          {success ? (
+            <p
+              className="workspace-message form-message form-message--success"
+              role="status"
+            >
+              {success}
+            </p>
+          ) : null}
         </>
       )}
     </RoleWorkspace>

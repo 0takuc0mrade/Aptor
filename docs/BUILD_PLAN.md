@@ -42,23 +42,39 @@
       transactions.
 - [x] Remove disconnected placeholders without fabricating activity.
 
+### 6. Add encrypted in-app delivery
+
+- [x] Add one encrypted, device-bound Aptor profile for every role.
+- [x] Generate P-256 account encryption keys and high-entropy capabilities in
+      the browser.
+- [x] Add SQLite migrations, hashed capability authentication, invitations,
+      encrypted envelopes, notifications, and request-status tracking.
+- [x] Encrypt every credential and request envelope with fresh ECDH/HKDF/AES-GCM
+      material and recipient-bound authenticated context.
+- [x] Make Professional invitations and inboxes the default Issuer handoff.
+- [x] Make encrypted request delivery and automatic receipt monitoring the
+      default Verifier handoff.
+- [x] Keep versioned file import/export under Advanced.
+- [x] Add unit, API, browser-crypto, privacy, and three-context LocalNet tests.
+
 ## Remaining product work
 
-### 6. Harden credential lifecycle
+### 7. Deploy improved workflow to Preprod
+
+- Deploy the unchanged Compact contract to Midnight Preprod.
+- Validate registration and fulfillment with the real 1AM wallet.
+- Host the frontend and choose a durable hosted SQL replacement for local
+  SQLite without changing the delivery-service boundary.
+- Preserve public deployment and transaction evidence.
+- Prepare the final hackathon submission without expanding product scope.
+
+### 8. Post-hackathon credential lifecycle
 
 - Add expiry, revocation, issuer identity policy, and key rotation.
 - Add request expiration and authorization for request creation.
 - Rate-limit adaptive requests that could narrow private ranges.
 - Decide multi-skill and multi-credential proof composition.
 
-### 7. Deploy and prepare hackathon delivery
-
-- Select and deploy to the supported public test environment.
-- Harden the already working demo path without adding product scope.
-- Add submission-grade architecture visuals and concise documentation.
-- Record a reproducible two-minute demo from issuance through receipt.
-- Prepare and verify the Devpost submission.
-
 ## Exact next milestone
 
-> Deploy the polished Aptor MVP to the selected public test environment, harden the demo path, add submission-grade documentation and architecture visuals, record the two-minute demo, and prepare the Devpost submission without expanding product scope.
+> Deploy the improved Aptor workflow to Midnight Preprod, validate it with the real 1AM wallet, host the frontend, preserve public transaction evidence, and prepare the final hackathon submission without expanding product scope.

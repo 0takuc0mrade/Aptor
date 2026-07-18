@@ -46,6 +46,10 @@ export default defineConfig({
     env: {
       ...process.env,
       APTOR_NEXT_DIST_DIR: ".next-playwright",
+      APTOR_DELIVERY_DB_PATH: resolve(
+        repositoryRoot,
+        ".midnight/browser-e2e/delivery.sqlite",
+      ),
       NEXT_PUBLIC_APTOR_NETWORK: deployment.network,
       NEXT_PUBLIC_APTOR_CONTRACT_ADDRESS: deployment.contractAddress,
       NEXT_PUBLIC_APTOR_INDEXER_URL: deployment.indexerUrl,

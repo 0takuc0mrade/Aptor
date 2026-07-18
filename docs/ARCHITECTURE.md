@@ -2,25 +2,29 @@
 
 ## Status
 
-Milestone 5 connects Aptor's request-bound capability proof to the complete
-browser product. Issuer and professional secrets persist only inside encrypted
-IndexedDB vaults. Versioned Aptor files provide explicit role-to-role transfer.
-The official connector API supplies wallet proving, balancing, and submission,
-while the indexer provider supplies public registration and receipt state.
+Milestone 6 adds a device-bound, multi-role Aptor profile and an encrypted
+delivery plane without changing the Compact contract. Every private role state,
+the raw account capability, and the P-256 private encryption key persist only
+inside one encrypted IndexedDB account vault. SQLite routes encrypted envelopes
+and caches public status; Midnight remains authoritative for request
+registration, proof fulfillment, and replay state.
 
 ## System context
 
 ```text
-Issuer browser              Professional browser               Verifier browser
-  │                              │                                 │
-  │<── public holder file ───────┤                                 │
-  │── encrypted credential ─────>│                                 │
-  │                              │<── registered request file ─────┤
-  │                              │                                 │
-  │                              ├── ephemeral witness + wallet ──>│ Midnight
-  │                              │                                 │ request + receipt
-  │                              │                                 │
-  └──── public issuer file ───────────────────────────────────────>│
+Professional browser        Aptor delivery service          Issuer / Verifier
+  │                                  │                            │
+  ├── hashed invite capability ─────>│                            │
+  │                                  │<── one-time redemption ────┤ Issuer
+  │<──────── encrypted credential envelope ───────────────────────┤
+  │                                  │                            │
+  │<──────── encrypted registered request envelope ───────────────┤ Verifier
+  │                                  │                            │
+  ├── ephemeral witness + wallet ────────────────────────────────>│ Midnight
+  │                                  │                            │ request + receipt
+  │                                  │<── public status cache ─────┤
+  │                                  │                            │
+  └── portable files remain an Advanced fallback ─────────────────┘
 ```
 
 The issuer attests to work. Aptor verifies cryptographic authorization and
@@ -102,9 +106,13 @@ client identity, or project identity.
 
 - `apps/web` owns the role-aware product UI and client orchestration.
 - `packages/aptor-browser` owns Web Crypto, runtime file schemas, encrypted
-  IndexedDB sessions, official connector discovery, provider assembly, public
-  queries, contract calls, and proof-scoped private state.
-- `packages/shared` owns versioned product-domain boundaries.
+  IndexedDB sessions, account and envelope crypto, official connector
+  discovery, provider assembly, public queries, contract calls, and
+  proof-scoped private state.
+- `packages/aptor-delivery` owns SQLite migrations, prepared queries,
+  capability authentication, authorization, rate limits, ciphertext routing,
+  notifications, and public status caching.
+- `packages/shared` owns versioned product and delivery protocol schemas.
 - `contracts/aptor-credential` owns Compact, issuer/request utilities, trees,
   private witnesses, and generated-runtime tests.
 - `packages/aptor-midnight` owns local providers, contract API, wallet adapter,
@@ -139,6 +147,32 @@ Browser ZK files are copied from the compiled contract boundary into
 all six required files. The large `proveAgainstRequest.prover` is approximately
 11 MB and is fetched only when that circuit is needed.
 
+## Account and delivery architecture
+
+`AptorAccountVaultV1` contains the public profile copy, raw access capability,
+P-256 private encryption key, Professional holder state, Issuer signing state,
+and Verifier trust/request state. PBKDF2-SHA-256 and AES-256-GCM protect the
+complete account container. Role switching changes the workspace; it does not
+change the account.
+
+The public `AptorProfileV1` contains the profile ID, normalized handle, display
+name, P-256 public encryption key, public holder profile, and public Issuer
+profile. The server stores only a SHA-256 hash of the browser-generated
+256-bit access capability. SHA-256 is appropriate because the input is a
+uniform, high-entropy bearer capability rather than a human password.
+
+SQLite is the local durable adapter. All queries are prepared, migrations are
+versioned in source, foreign keys are enabled, and WAL mode supports concurrent
+local reads. A hosted deployment should replace this adapter with managed
+PostgreSQL or compatible SQL while preserving the service interfaces and
+authorization checks.
+
+The server observes public profiles, sender/recipient relationships, envelope
+type and size, timing, invitation relationships, public request IDs,
+transactions, network, and cached public status. It cannot derive an envelope
+key because it never receives the recipient private key or ephemeral private
+key.
+
 ## Pinned local stack
 
 Verified on 2026-07-17:
@@ -161,10 +195,11 @@ Official references:
 
 ## Remaining decisions
 
-1. Public-network target and supported wallet release matrix.
-2. Product authorization for who may register a verifier request.
-3. Issuer domain/legal-identity verification and key rotation.
-4. Credential expiry, revocation, and request expiration.
-5. Multi-skill and multi-credential proof composition.
-6. Rate limits against adaptive threshold inference.
-7. Migration to a native Compact signature verifier when available.
+1. Preprod deployment and supported 1AM wallet release matrix.
+2. Production identity, recovery, capability renewal, and multi-device sync.
+3. Hosted SQL adapter, reverse-proxy limits, and distributed rate limiting.
+4. Issuer domain/legal-identity verification and key rotation.
+5. Credential expiry, revocation, and request expiration.
+6. Multi-skill and multi-credential proof composition.
+7. Rate limits against adaptive threshold inference.
+8. Migration to a native Compact signature verifier when available.

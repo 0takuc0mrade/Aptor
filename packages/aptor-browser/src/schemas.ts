@@ -1,37 +1,29 @@
 import { z } from "zod";
+import {
+  aptorNetworkSchema,
+  aptorProfileIdSchema,
+  aptorProfileSchema,
+  holderProfileSchema,
+  issuerProfileSchema,
+  privateProfileStateSchema,
+} from "@aptor/shared";
+import type {
+  AptorHolderProfileV1,
+  AptorIssuerProfileV1,
+  AptorNetwork,
+  AptorProfileV1,
+  AptorPrivateProfileStateV1,
+} from "@aptor/shared";
 
 const ISO_DATE = z.iso.datetime({ offset: true });
 const HEX_32 = z.string().regex(/^[0-9a-f]{64}$/u, "Expected 32-byte hex.");
 const DECIMAL_BIGINT = z.string().regex(/^(0|[1-9][0-9]*)$/u);
-const PROFILE_ID = z.string().regex(/^apt_[0-9a-f]{32}$/u);
 const JUBJUB_POINT = z
   .string()
   .regex(/^aptor-jubjub-v1:[0-9a-f]{64}:[0-9a-f]{64}$/u);
-const NETWORK = z.enum(["mainnet", "preview", "preprod", "undeployed"]);
 
-export const holderProfileSchema = z
-  .object({
-    format: z.literal("aptor-holder"),
-    version: z.literal(1),
-    profileId: PROFILE_ID,
-    holderCommitment: HEX_32,
-    createdAt: ISO_DATE,
-  })
-  .strict();
-
-export type AptorHolderProfileV1 = z.infer<typeof holderProfileSchema>;
-
-export const issuerProfileSchema = z
-  .object({
-    format: z.literal("aptor-issuer"),
-    version: z.literal(1),
-    issuerPublicKey: JUBJUB_POINT,
-    displayName: z.string().trim().min(1).max(120).optional(),
-    createdAt: ISO_DATE,
-  })
-  .strict();
-
-export type AptorIssuerProfileV1 = z.infer<typeof issuerProfileSchema>;
+export { holderProfileSchema, issuerProfileSchema };
+export type { AptorHolderProfileV1, AptorIssuerProfileV1, AptorNetwork };
 
 export const workCredentialSchema = z
   .object({
@@ -48,7 +40,7 @@ export const signedCredentialSchema = z
   .object({
     format: z.literal("aptor-signed-credential"),
     version: z.literal(1),
-    holderProfileId: PROFILE_ID,
+    holderProfileId: aptorProfileIdSchema,
     credential: workCredentialSchema,
     issuerPublicKey: JUBJUB_POINT,
     issuerSignature: z
@@ -131,7 +123,7 @@ export const requestPackageSchema = z
   .object({
     format: z.literal("aptor-request"),
     version: z.literal(1),
-    network: NETWORK,
+    network: aptorNetworkSchema,
     contractAddress: z.string().min(8).max(256),
     request: proofRequestSchema,
     requestCommitment: HEX_32,
@@ -152,7 +144,6 @@ export const requestPackageSchema = z
   .strict();
 
 export type AptorProofRequestPackageV1 = z.infer<typeof requestPackageSchema>;
-export type AptorNetwork = z.infer<typeof NETWORK>;
 
 export const professionalVaultSchema = z
   .object({
@@ -176,7 +167,7 @@ export const issuerVaultSchema = z
         z
           .object({
             credentialId: HEX_32,
-            holderProfileId: PROFILE_ID,
+            holderProfileId: aptorProfileIdSchema,
             issuedAt: ISO_DATE,
           })
           .strict(),
@@ -192,7 +183,7 @@ export const encryptedVaultSchema = z
     format: z.literal("aptor-vault-backup"),
     version: z.literal(1),
     kind: z.enum(["professional", "issuer"]),
-    profileId: PROFILE_ID.optional(),
+    profileId: aptorProfileIdSchema.optional(),
     encryption: encryptionMetadataSchema,
     ciphertext: z.string().min(1),
     createdAt: ISO_DATE,
@@ -202,6 +193,56 @@ export const encryptedVaultSchema = z
 
 export type AptorEncryptedVaultV1 = z.infer<typeof encryptedVaultSchema>;
 export type AptorVaultKind = AptorEncryptedVaultV1["kind"];
+
+export const verifierStateSchema = z
+  .object({
+    trustedProfiles: z.array(aptorProfileSchema).max(32),
+    activeRequests: z
+      .array(
+        z
+          .object({
+            professionalProfileId: aptorProfileIdSchema,
+            professionalHandle: z.string().min(3).max(32),
+            request: requestPackageSchema,
+            envelopeId: z.string().uuid().optional(),
+            fulfillmentTransactionId: z.string().min(8).max(256).optional(),
+          })
+          .strict(),
+      )
+      .max(500),
+  })
+  .strict();
+
+export const accountVaultSchema = z
+  .object({
+    kind: z.literal("account"),
+    profile: aptorProfileSchema,
+    privateProfile: privateProfileStateSchema,
+    professional: professionalVaultSchema,
+    issuer: issuerVaultSchema,
+    verifier: verifierStateSchema,
+  })
+  .strict();
+
+export type AptorVerifierStateV1 = z.infer<typeof verifierStateSchema>;
+export type AptorAccountVaultV1 = z.infer<typeof accountVaultSchema>;
+export type { AptorPrivateProfileStateV1, AptorProfileV1 };
+
+export const encryptedAccountVaultSchema = z
+  .object({
+    format: z.literal("aptor-account-vault-backup"),
+    version: z.literal(1),
+    profileId: aptorProfileIdSchema,
+    encryption: encryptionMetadataSchema,
+    ciphertext: z.string().min(1),
+    createdAt: ISO_DATE,
+    updatedAt: ISO_DATE,
+  })
+  .strict();
+
+export type AptorEncryptedAccountVaultV1 = z.infer<
+  typeof encryptedAccountVaultSchema
+>;
 
 export function parseImportedJson(text: string): unknown {
   try {

@@ -25,16 +25,37 @@ exact credential values remain private witness data.
 
 ## Browser custody
 
-The professional and issuer use separate AES-256-GCM vault containers in
-IndexedDB. PBKDF2-HMAC-SHA-256 derives a key from the user password with a
-random 32-byte salt and 310,000 iterations; each encryption uses a fresh
-12-byte IV and authenticated context data. Passwords and derived keys are not
-persisted. Locking a vault clears the in-memory session.
+One AES-256-GCM account container in IndexedDB holds every role's private state,
+the raw access capability, and the P-256 private encryption key. PBKDF2-HMAC-
+SHA-256 derives a key from the user password with a random 32-byte salt and
+310,000 iterations; each encryption uses a fresh 12-byte IV and authenticated
+context data. Passwords and derived keys are not persisted. Locking the profile
+clears the in-memory session.
 
-Portable public files contain only the holder commitment, issuer public key,
-or registered request fields appropriate to their role. The credential file is
-an authenticated encrypted container protected by a transfer passphrase shared
-outside Aptor. There is no credential API route or hidden role-state transfer.
+The default handoff uses recipient-key envelope encryption. Portable public
+files contain only the holder commitment, Issuer public key, or registered
+request fields appropriate to their role. Portable credentials remain an
+authenticated encrypted container protected by a separately shared transfer
+passphrase under Advanced.
+
+## Delivery privacy
+
+Each envelope uses a fresh ephemeral P-256 ECDH keypair. HKDF-SHA-256 derives an
+AES-256-GCM key under versioned context containing sender, recipient, envelope
+type, and content digest. A fresh 12-byte nonce protects each encryption. The
+recipient derives the key locally from the encrypted account vault. Sender and
+recipient binding is authenticated as additional data, so rerouting or field
+tampering fails closed.
+
+The delivery service stores ciphertext, nonce, ephemeral public key,
+encryption version, and routing metadata. It stores no plaintext credential
+payload, holder secret, Issuer signing key, private encryption key, raw access
+capability, or vault password. Public proof-request tracking contains only data
+already public or intended to be public on Midnight.
+
+The backend can observe who communicates with whom, when, the envelope type,
+and approximate payload size. Aptor does not claim network-level or metadata
+privacy.
 
 ## Private witness
 
@@ -91,8 +112,9 @@ system are uncompromised.
 - Exfiltrate witness data through logs, browser storage, analytics, or errors.
 - Treat possession of a holder secret as legal or wallet identity.
 
-Expiry, revocation, request expiration, multi-device recovery, legal issuer
-identity, and anti-collusion policy remain outside Milestone 5. A forgotten
-vault password cannot be recovered. A verifier can deliberately choose a
-singleton issuer set or make repeated threshold requests, so product policy is
-still required alongside cryptography.
+Expiry, revocation, request expiration, multi-device recovery, legal Issuer
+identity, capability renewal, and anti-collusion policy remain outside
+Milestone 6. This hackathon account is device-bound and has no recovery flow. A
+forgotten vault password or lost private encryption key cannot be recovered. A
+Verifier can deliberately choose a singleton Issuer set or make repeated
+threshold requests, so product policy is still required alongside cryptography.

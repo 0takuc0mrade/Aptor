@@ -2,11 +2,15 @@ import { AptorError } from "./errors.js";
 import { fromBase64, toBase64 } from "./encoding.js";
 import {
   encryptedCredentialPackageSchema,
+  encryptedAccountVaultSchema,
+  accountVaultSchema,
   encryptedVaultSchema,
   issuerVaultSchema,
   professionalVaultSchema,
   signedCredentialSchema,
   type AptorEncryptedCredentialPackageV1,
+  type AptorEncryptedAccountVaultV1,
+  type AptorAccountVaultV1,
   type AptorEncryptedVaultV1,
   type AptorSignedCredentialV1,
   type AptorVaultKind,
@@ -213,4 +217,40 @@ export async function decryptVault<K extends AptorVaultKind>(
   return parsed as K extends "professional"
     ? ProfessionalVaultV1
     : IssuerVaultV1;
+}
+
+export async function encryptAccountVault(
+  value: AptorAccountVaultV1,
+  password: string,
+  previousCreatedAt?: string,
+): Promise<AptorEncryptedAccountVaultV1> {
+  const parsed = accountVaultSchema.parse(value);
+  const now = new Date().toISOString();
+  const encrypted = await encryptJson(
+    parsed,
+    password,
+    `aptor-account-vault:1:${parsed.profile.profileId}`,
+  );
+  return encryptedAccountVaultSchema.parse({
+    format: "aptor-account-vault-backup",
+    version: 1,
+    profileId: parsed.profile.profileId,
+    ...encrypted,
+    createdAt: previousCreatedAt ?? now,
+    updatedAt: now,
+  });
+}
+
+export async function decryptAccountVault(
+  container: AptorEncryptedAccountVaultV1,
+  password: string,
+): Promise<AptorAccountVaultV1> {
+  const parsed = encryptedAccountVaultSchema.parse(container);
+  const value = await decryptJson(
+    parsed.encryption,
+    parsed.ciphertext,
+    password,
+    `aptor-account-vault:1:${parsed.profileId}`,
+  );
+  return accountVaultSchema.parse(value);
 }

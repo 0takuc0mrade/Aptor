@@ -18,6 +18,7 @@ coverage/
 
 .midnight-state.json
 .midnight/
+.aptor-delivery/
 .secrets/
 private-state/
 local-network-data/

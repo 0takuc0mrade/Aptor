@@ -4,6 +4,8 @@ import type { AptorRole } from "@aptor/shared";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAptorAccount } from "./account-provider";
+
 const roles: ReadonlyArray<{
   href: `/${AptorRole}`;
   label: string;
@@ -26,6 +28,10 @@ type AppShellProps = Readonly<{
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const account = useAptorAccount();
+  const unread = account.notifications.filter(
+    (notification) => notification.readAt === null,
+  ).length;
 
   if (pathname === "/") {
     return (
@@ -77,9 +83,18 @@ export function AppShell({ children }: AppShellProps) {
             })}
           </nav>
 
+          <Link
+            className="inbox-affordance"
+            href="/professional"
+            aria-label={`${unread} unread Aptor notifications`}
+          >
+            Inbox
+            {unread > 0 ? <span>{unread}</span> : null}
+          </Link>
+
           <div className="milestone-status" role="status">
             <span aria-hidden="true" className="milestone-status__dot" />
-            Browser MVP
+            Encrypted delivery
           </div>
         </div>
       </header>

@@ -21,11 +21,13 @@ a credential signed by a key in the verifier's accepted issuer set. The receipt
 does not reveal which accepted issuer signed, the credential's exact values, or
 private client/project information.
 
-The role interfaces are connected to real local cryptography, encrypted
-IndexedDB vaults, portable Aptor files, the official Midnight connector API,
-request registration, proof generation, and public receipt queries. The
-validated end-to-end target is Midnight LocalNet; Preprod deployment remains
-future delivery work. No role page uses fabricated product activity.
+One device-bound Aptor profile can act in all three roles. The role interfaces
+are connected to real local cryptography, an encrypted IndexedDB account vault,
+single-use invitations, encrypted in-app inboxes, portable fallback files, the
+official Midnight connector API, request registration, proof generation, and
+automatic receipt monitoring. The validated end-to-end target is Midnight
+LocalNet; Preprod deployment remains future delivery work. No role page uses
+fabricated product activity.
 
 ## Positioning
 
