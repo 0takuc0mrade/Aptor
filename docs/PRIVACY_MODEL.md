@@ -23,12 +23,27 @@ exact credential values remain private witness data.
 | Exact credential rating              |                 No | Compared with public minimum                 |
 | Issuer signing key                   | Never enters proof | Issuance only                                |
 
+## Browser custody
+
+The professional and issuer use separate AES-256-GCM vault containers in
+IndexedDB. PBKDF2-HMAC-SHA-256 derives a key from the user password with a
+random 32-byte salt and 310,000 iterations; each encryption uses a fresh
+12-byte IV and authenticated context data. Passwords and derived keys are not
+persisted. Locking a vault clears the in-memory session.
+
+Portable public files contain only the holder commitment, issuer public key,
+or registered request fields appropriate to their role. The credential file is
+an authenticated encrypted container protected by a transfer passphrase shared
+outside Aptor. There is no credential API route or hidden role-state transfer.
+
 ## Private witness
 
-The Level private state contains `WorkCredentialV1`, the private issuer public
-key and signature, a depth-5 issuer membership path, holder secret, private
-canonical skill IDs, and a depth-5 selected-skill path. Witness functions return
-only the fixed bundle required by Compact and never log it.
+The browser proof-scoped private state contains `WorkCredentialV1`, the private
+issuer public key and signature, a depth-5 issuer membership path, holder
+secret, private canonical skill IDs, and a depth-5 selected-skill path. It is
+hydrated from the unlocked vault only after explicit credential selection,
+cannot be exported, and is disposed after success, failure, timeout, or vault
+lock. Node provider tests use a separate ignored Level store.
 
 ## Public contract state
 
@@ -53,14 +68,16 @@ depends on the verifier's policy as well as cryptography.
 
 ## Inspected surfaces
 
-Generated-runtime tests inspect circuit public input/output, transcript, return,
-and decoded ledger. Provider-backed tests inspect request/proof transactions,
-decoded ledger, raw public-data-provider results, public API results, and the
-deliberately public application log record. Findings are reported only for
-these available surfaces; validator-internal data is not claimed inspected.
-The scanner covers private field names, decoded scalar equality, embedded byte
-sequences, high-entropy scalar bytes in both byte orders, and hexadecimal
-string encodings.
+Generated-runtime tests inspect circuit public input/output, transcript,
+return, and decoded ledger. Provider-backed tests inspect request/proof
+transactions, decoded ledger, raw public-data-provider results, public API
+results, and the deliberately public application log record. Browser tests
+also inspect the IndexedDB record, public portable files, `localStorage`, and
+the public receipt UI. The repository scan checks production source for
+private values sent to console/localStorage/URL-like sinks and literal wallet
+or credential secrets. Findings are limited to inspected surfaces; the scan
+cannot establish that the browser, extensions, dependencies, or operating
+system are uncompromised.
 
 ## Threats and limitations
 
@@ -74,5 +91,8 @@ string encodings.
 - Exfiltrate witness data through logs, browser storage, analytics, or errors.
 - Treat possession of a holder secret as legal or wallet identity.
 
-Expiry, revocation, request expiration, browser custody, legal issuer identity,
-and anti-collusion policy remain outside Milestone 4.
+Expiry, revocation, request expiration, multi-device recovery, legal issuer
+identity, and anti-collusion policy remain outside Milestone 5. A forgotten
+vault password cannot be recovered. A verifier can deliberately choose a
+singleton issuer set or make repeated threshold requests, so product policy is
+still required alongside cryptography.

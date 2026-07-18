@@ -32,7 +32,12 @@ artifacts repeatable even when another Compact compiler is selected globally.
 Generated compiler output is written to `generated/aptor/` and ignored by Git.
 It must be regenerated before TypeScript builds or tests.
 
-The compiled wrapper exported by this package is consumed by
-`packages/aptor-midnight`. See `docs/CONTRACT_MILESTONE_4.md` for the trust
-model, tree construction, real local proof and transaction evidence, privacy
-inspection, and limitations.
+The compiled wrapper is consumed by both `packages/aptor-midnight` and the
+browser boundary in `packages/aptor-browser`. The web app's build copies only
+the six public ZK artifacts into `/zk/aptor` and validates that every prover,
+verifier, and ZKIR file exists. The `proveAgainstRequest` prover key is
+approximately 11 MB, so its first browser load is expected to be visible.
+
+See `docs/CONTRACT_MILESTONE_4.md` for the contract trust model and
+`docs/PRODUCT_MILESTONE_5.md` for browser provider, vault, transport, and real
+LocalNet E2E evidence.

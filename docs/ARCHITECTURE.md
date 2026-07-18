@@ -2,32 +2,25 @@
 
 ## Status
 
-Milestone 4 implements Aptor's first request-bound capability proof. A verifier
-registers a commitment to public criteria and an accepted-issuer Merkle root. A
-professional privately proves that one issuer-signed `WorkCredentialV1` comes
-from that set, belongs to the holder, contains the requested skill, and meets
-the enabled duration, production, and rating predicates. Successful fulfillment
-is recorded once per request ID.
-
-The existing web role pages remain a disconnected product shell. They do not
-claim wallet, credential-storage, or proof activity.
+Milestone 5 connects Aptor's request-bound capability proof to the complete
+browser product. Issuer and professional secrets persist only inside encrypted
+IndexedDB vaults. Versioned Aptor files provide explicit role-to-role transfer.
+The official connector API supplies wallet proving, balancing, and submission,
+while the indexer provider supplies public registration and receipt state.
 
 ## System context
 
 ```text
-Issuer                     Professional                       Verifier
-  │                             │                                │
-  │ sign WorkCredentialV1       │                                │
-  ├────────────────────────────>│ private credential bundle      │
-  │                             │                                │
-  │                             │<── public ProofRequestV1 ──────┤
-  │                             │          │                     │
-  │                             │          └── register commitment
-  │                             │                                │
-  │                             ├── private paths + proof ──────>│ Midnight
-  │                             │                                │ verifies all
-  │                             │                                │ marks request
-  │                             │                                │ fulfilled once
+Issuer browser              Professional browser               Verifier browser
+  │                              │                                 │
+  │<── public holder file ───────┤                                 │
+  │── encrypted credential ─────>│                                 │
+  │                              │<── registered request file ─────┤
+  │                              │                                 │
+  │                              ├── ephemeral witness + wallet ──>│ Midnight
+  │                              │                                 │ request + receipt
+  │                              │                                 │
+  └──── public issuer file ───────────────────────────────────────>│
 ```
 
 The issuer attests to work. Aptor verifies cryptographic authorization and
@@ -107,7 +100,10 @@ client identity, or project identity.
 
 ## Repository boundaries
 
-- `apps/web` owns the disconnected role-aware presentation shell.
+- `apps/web` owns the role-aware product UI and client orchestration.
+- `packages/aptor-browser` owns Web Crypto, runtime file schemas, encrypted
+  IndexedDB sessions, official connector discovery, provider assembly, public
+  queries, contract calls, and proof-scoped private state.
 - `packages/shared` owns versioned product-domain boundaries.
 - `contracts/aptor-credential` owns Compact, issuer/request utilities, trees,
   private witnesses, and generated-runtime tests.
@@ -118,26 +114,30 @@ client identity, or project identity.
 ## Provider architecture
 
 ```text
-private credential + issuer/skill paths
-                  │
-                  ▼
-generated Aptor contract + Level private state
-                  │
-       ┌──────────┼───────────┐
-       ▼          ▼           ▼
-   node ZK     HTTP proof   indexer public
-   assets      provider     data provider
-       └──────────┼───────────┘
-                  ▼
-       local wallet: balance, sign, submit
-                  │
-                  ▼
-          node → finalized receipt
+encrypted Aptor vault
+         │ explicit credential selection
+         ▼
+ephemeral browser private state ─── browser-served ZK artifacts
+         │                                   │
+         └──────── generated contract ───────┘
+                         │
+        ┌────────────────┼─────────────────┐
+        ▼                ▼                 ▼
+ official wallet     indexer public    disabled/redacted
+ proof + balance     data provider     logger provider
+        │                │
+        └──── submit ────┴────> finalized public receipt
 ```
 
-The proof-server health check requires an HTTP response from the service, not
-merely a TCP connection to Docker's host proxy. This prevents cold asset
-downloads from producing a false-ready state.
+The durable vault never becomes a generic Midnight private-state database. A
+proof action hydrates only the selected request/credential material, and a
+`finally` path clears it after success or failure. The provider deliberately
+cannot export private state or maintenance keys.
+
+Browser ZK files are copied from the compiled contract boundary into
+`apps/web/public/zk/aptor` during `predev` and `prebuild`. The sync script checks
+all six required files. The large `proveAgainstRequest.prover` is approximately
+11 MB and is fetched only when that circuit is needed.
 
 ## Pinned local stack
 
@@ -159,9 +159,9 @@ Official references:
 - [Wallet SDK guide](https://docs.midnight.network/sdks/official/wallet-developer-guide)
 - [Official ZK Loan example](https://github.com/midnightntwrk/example-zkloan)
 
-## Decisions still required
+## Remaining decisions
 
-1. Browser wallet and encrypted private-state storage/recovery.
+1. Public-network target and supported wallet release matrix.
 2. Product authorization for who may register a verifier request.
 3. Issuer domain/legal-identity verification and key rotation.
 4. Credential expiry, revocation, and request expiration.

@@ -79,7 +79,7 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className="milestone-status" role="status">
             <span aria-hidden="true" className="milestone-status__dot" />
-            Foundation
+            Browser MVP
           </div>
         </div>
       </header>
@@ -90,8 +90,8 @@ export function AppShell({ children }: AppShellProps) {
 
       <footer className="footer">
         <p>
-          Aptor 0.1 · Foundation milestone · Midnight integration not connected
-          · No simulated credentials or proof results
+          Aptor 0.1 · Encrypted local vaults · Official Midnight wallet path ·
+          No fabricated credentials or proof results
         </p>
         <p>Prove the work. Protect the details.</p>
       </footer>

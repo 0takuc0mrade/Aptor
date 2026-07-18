@@ -26,7 +26,7 @@ export default function HomePage() {
 
         <p className="landing-foundation">
           <span aria-hidden="true" />
-          Foundation
+          Browser MVP
         </p>
       </header>
 

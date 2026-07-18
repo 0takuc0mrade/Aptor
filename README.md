@@ -20,24 +20,26 @@ it, and it does not prove that the issuer's original statement was truthful.
 - **Professional** — the credential holder who stores credentials locally, chooses one for a request, and generates a selective proof.
 - **Verifier** — a recruiter, client, or employer who creates a structured request and receives only verification results.
 
-The MVP supports all three roles inside one application.
+The MVP supports all three roles as real, file-mediated browser workflows
+inside one application.
 
 ## MVP journey
 
-1. An issuer signs a credential containing a private skill-set root, duration,
-   production status, rating, and holder commitment.
-2. A verifier registers a commitment to one structured proof request and an
-   accepted-issuer Merkle root.
-3. The professional privately supplies the credential, holder secret, issuer
-   key and issuer/skill membership paths.
-4. Midnight verifies request integrity, issuer membership and signature,
-   holder binding, and every enabled capability predicate.
-5. A successful transaction marks that request ID fulfilled exactly once.
-6. The public sees the request and receipt, but not the credential or the
-   specific accepted issuer.
+1. A professional creates an encrypted local identity and exports a public
+   `.aptor-holder.json` profile.
+2. An issuer imports that profile, signs a credential, and exports an encrypted
+   `.aptor-credential` package.
+3. The professional decrypts and verifies the credential into an encrypted
+   IndexedDB vault.
+4. A verifier imports public issuer profiles, registers one structured request,
+   and exports `.aptor-request.json`.
+5. The professional validates the registered request, selects a compatible
+   private credential, and submits a real Midnight proof.
+6. The verifier queries the public one-time fulfillment receipt. The credential,
+   exact values, selected issuer, and holder secret remain private.
 
-Expiry, revocation, browser-wallet binding, encrypted browser storage, and
-frontend workflow activation remain later work.
+Expiry, revocation, legal issuer identity, public share links, and backend
+recovery remain intentionally outside this MVP.
 
 ## Repository structure
 
@@ -50,6 +52,7 @@ aptor/
 ├── docs/                    Architecture, privacy, scope, and build plan
 ├── packages/
 │   ├── aptor-midnight/       Local provider stack, deployment API, and network test
+│   ├── aptor-browser/        Browser crypto, vaults, files, wallet, and contract APIs
 │   └── shared/               Strict shared TypeScript domain types
 ├── scripts/                  Repository automation notes
 ├── .env.example             Non-secret endpoint placeholders
@@ -60,16 +63,16 @@ aptor/
 
 ## What is real and what is simulated
 
-| Area               | Implemented now                                                                | Later target                                      |
-| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------- |
-| Domain model       | Versioned credential, private bundle, request, registration, and receipt types | Frontend adapters and encrypted persistence       |
-| Frontend           | Responsive role shell and routes; no live credential flow                      | Issuance, storage, request, and proof workflows   |
-| Credential signing | Real Jubjub Schnorr signing with secure runtime keys                           | Durable issuer key management and rotation        |
-| Midnight contract  | Private issuer/skill membership and four request-bound predicates              | Expiry, revocation, and multi-credential policies |
-| Proof generation   | Real proof-server generation and finalized local transactions                  | Supported browser provider flow                   |
-| Wallet             | Local genesis-funded development wallet in network tests only                  | Official browser wallet/DApp connector            |
-| Issuer onboarding  | Verifier supplies an accepted-key root; legal identity is not established      | Domain/legal-identity verification                |
-| Proof results      | One public fulfillment receipt per registered request ID                       | Product-facing receipt lifecycle                  |
+| Area               | Implemented now                                                                    | Later target                                      |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Domain model       | Runtime-validated holder, issuer, encrypted credential, request, and vault formats | Expiry and revocation formats                     |
+| Frontend           | Responsive Issuer, Professional, and Verifier workflows                            | Public share links and account sync               |
+| Credential signing | Real Jubjub Schnorr signing; encrypted issuer vault                                | Legal identity policy and key rotation            |
+| Midnight contract  | Private issuer/skill membership and four request-bound predicates                  | Expiry, revocation, and multi-credential policies |
+| Proof generation   | Real browser-triggered proofs and finalized LocalNet transactions                  | Public test-network deployment                    |
+| Wallet             | Official DApp Connector discovery and connected wallet API                         | Submission-network wallet compatibility matrix    |
+| Local storage      | AES-GCM/PBKDF2 IndexedDB vaults with backup, restore, lock, and delete             | Multi-device recovery                             |
+| Proof results      | Product-facing registration, fulfillment, query, and replay states                 | Shareable public receipt links                    |
 
 ## Getting started
 
@@ -87,6 +90,11 @@ npm run dev
 
 Open `http://localhost:3000` for the Aptor landing page, then enter the Issuer,
 Professional, or Verifier workspace from the role navigation.
+
+Browser proof actions require the public `NEXT_PUBLIC_APTOR_*` values described
+in `.env.example`. The app uses the selected network and configured contract;
+it does not invent a deployment. Milestone 5 was validated on LocalNet through
+the official test adapter. No Preprod deployment is claimed.
 
 Compile and test the Compact contract:
 
@@ -112,6 +120,15 @@ Or run the start, health, network-test, and cleanup lifecycle together:
 npm run midnight:test:local
 ```
 
+Run the complete three-browser LocalNet workflow:
+
+```bash
+npm run midnight:network:up
+npm run browser:e2e:prepare
+npm run test:e2e:local --workspace @aptor/web
+npm run midnight:network:down
+```
+
 The local stack is pinned to the image versions recorded in
 `packages/aptor-midnight/docker-compose.local.yml`. The network test uses the
 local genesis-funded development wallet only. It never reads a production seed
@@ -132,6 +149,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm run build
+npm run security:scan
 ```
 
 ## Documentation
@@ -144,7 +162,13 @@ npm run build
 - [Contract milestone 2](docs/CONTRACT_MILESTONE_2.md)
 - [Contract milestone 3](docs/CONTRACT_MILESTONE_3.md)
 - [Contract milestone 4](docs/CONTRACT_MILESTONE_4.md)
+- [Product milestone 5](docs/PRODUCT_MILESTONE_5.md)
 
 ## Security baseline
 
-Never commit wallet seeds, private keys, private credentials, private-state databases, deployment state, or generated proving keys. `.env.example` contains placeholders only. Public identifiers, contract addresses, and proof results must be sourced from real deployments—not invented for UI demos.
+Never commit wallet seeds, private keys, private credentials, private-state
+databases, or local deployment state. Compiled Aptor ZK artifacts are generated
+locally and copied to the web static boundary at build time; they contain no
+credential witness data. `.env.example` contains public placeholders only.
+Contract addresses and proof results must come from real deployments—not UI
+fixtures.

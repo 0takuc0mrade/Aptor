@@ -31,15 +31,18 @@
 - [x] Record the final provider-backed identifiers and block-limit result in the
       Milestone 4 report after the real LocalNet run.
 
-## Remaining product work
-
 ### 5. Connect the existing frontend
 
-- Adopt the official browser wallet/DApp connector for the pinned stack.
-- Add wallet-backed Issuer, Professional, and Verifier sessions.
-- Connect credential issuance, request registration, proving, and receipts.
-- Add encrypted local credential storage and recovery behavior.
-- Remove all disconnected placeholders without fabricating activity.
+- [x] Adopt the official browser wallet/DApp connector for the pinned stack.
+- [x] Add real Issuer, Professional, and Verifier browser workflows.
+- [x] Connect credential issuance, request registration, proving, and receipts.
+- [x] Add encrypted local vault creation, lock, backup, restore, and deletion.
+- [x] Add versioned holder, issuer, encrypted credential, and request files.
+- [x] Validate the complete three-profile flow with real LocalNet proofs and
+      transactions.
+- [x] Remove disconnected placeholders without fabricating activity.
+
+## Remaining product work
 
 ### 6. Harden credential lifecycle
 
@@ -48,13 +51,14 @@
 - Rate-limit adaptive requests that could narrow private ranges.
 - Decide multi-skill and multi-credential proof composition.
 
-### 7. Validate and prepare delivery
+### 7. Deploy and prepare hackathon delivery
 
-- Complete keyboard, focus, contrast, reduced-motion, and responsive testing.
-- Add loading, empty, failure, recovery, and proof-progress states.
-- Record a reproducible demo from issuance through fulfilled receipt.
-- State real, simulated, and unsupported behavior in product copy.
+- Select and deploy to the supported public test environment.
+- Harden the already working demo path without adding product scope.
+- Add submission-grade architecture visuals and concise documentation.
+- Record a reproducible two-minute demo from issuance through receipt.
+- Prepare and verify the Devpost submission.
 
 ## Exact next milestone
 
-> Connect the existing Issuer, Professional and Verifier interfaces to the real Aptor contract, add wallet-backed role sessions and encrypted local credential storage, and complete the end-to-end browser workflow without fabricated data.
+> Deploy the polished Aptor MVP to the selected public test environment, harden the demo path, add submission-grade documentation and architecture visuals, record the two-minute demo, and prepare the Devpost submission without expanding product scope.

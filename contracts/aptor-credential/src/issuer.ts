@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 import {
   CompactTypeBoolean,
   CompactTypeBytes,
@@ -183,9 +181,23 @@ function normalizeScalar(value: bigint, field: string): bigint {
 function randomScalar(): bigint {
   let scalar = 0n;
   while (scalar === 0n) {
-    scalar = BigInt(`0x${randomBytes(32).toString("hex")}`) % JUBJUB_ORDER;
+    scalar = bytesToBigInt(randomBytes32()) % JUBJUB_ORDER;
   }
   return scalar;
+}
+
+function randomBytes32(): Uint8Array {
+  return globalThis.crypto.getRandomValues(new Uint8Array(32));
+}
+
+function bytesToBigInt(value: Uint8Array): bigint {
+  return value.reduce((result, byte) => (result << 8n) | BigInt(byte), 0n);
+}
+
+function bytesToHex(value: Uint8Array): string {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 function signingMessage(digest: Uint8Array): bigint[] {
@@ -219,7 +231,7 @@ export function deriveIssuerPublicKey(signingKey: bigint): JubjubPoint {
 }
 
 export function createHolderSecret(): Uint8Array {
-  return new Uint8Array(randomBytes(32));
+  return randomBytes32();
 }
 
 export function deriveHolderCommitment(holderSecret: Uint8Array): Uint8Array {
@@ -269,13 +281,13 @@ export function buildSkillTree(displaySkills: readonly string[]): SkillTree {
   const byId = new Map<string, NormalizedSkill>();
   for (const displaySkill of displaySkills) {
     const skill = encodeNormalizedSkill(displaySkill);
-    const key = Buffer.from(skill.id).toString("hex");
+    const key = bytesToHex(skill.id);
     if (!byId.has(key)) byId.set(key, skill);
   }
   const skills = [...byId.values()];
   const tree = buildBytes32MerkleTree(skills.map((skill) => skill.id));
   const byTreeOrder = tree.leaves.map((leaf) => {
-    const skill = byId.get(Buffer.from(leaf).toString("hex"));
+    const skill = byId.get(bytesToHex(leaf));
     if (skill === undefined) throw new Error("Skill tree ordering failed");
     return skill;
   });
@@ -305,7 +317,7 @@ export function deriveIssuerMembershipPath(
 export function createWorkCredential(
   input: WorkCredentialInput,
 ): WorkCredentialV1 {
-  const credentialId = input.credentialId ?? new Uint8Array(randomBytes(32));
+  const credentialId = input.credentialId ?? randomBytes32();
   assertBytes32(credentialId, "credentialId");
   assertBytes32(input.holderCommitment, "holderCommitment");
 

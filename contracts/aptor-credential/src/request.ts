@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 import {
   CompactTypeBoolean,
   CompactTypeBytes,
@@ -32,6 +30,10 @@ const uint16 = new CompactTypeUnsignedInteger(MAX_UINT16, 2);
 const encoder = new TextEncoder();
 const REQUEST_DOMAIN = encoder.encode("aptor:proof-request:v1");
 const EMPTY_SKILL_ID = new Uint8Array(32);
+
+function randomBytes32(): Uint8Array {
+  return globalThis.crypto.getRandomValues(new Uint8Array(32));
+}
 
 type ProofRequestCommitmentPreimage = [
   Uint8Array,
@@ -135,7 +137,7 @@ function validateActiveRequirements(request: ProofRequestV1): void {
 }
 
 export function createProofRequest(input: ProofRequestInput): ProofRequestV1 {
-  const requestId = input.requestId ?? new Uint8Array(randomBytes(32));
+  const requestId = input.requestId ?? randomBytes32();
   const requiredSkillId = input.requiredSkillId ?? EMPTY_SKILL_ID;
   assertBytes32(requestId, "requestId");
   assertBytes32(requiredSkillId, "requiredSkillId");

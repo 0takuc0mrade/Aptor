@@ -59,7 +59,7 @@ export function RoleWorkspace({
         <div className="role-hero__brief">
           <p>{description}</p>
           <div className="foundation-state" role="status">
-            <strong>Foundation mode</strong>
+            <strong>Browser workflow</strong>
             <span>{status}</span>
           </div>
         </div>

@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @aptor/web",
+    "browser:e2e:prepare": "npm run contract:build && npm run build --workspace @aptor/browser && npm run midnight:build && node apps/web/e2e/prepare-local.mjs",
+    "browser:test:local": "npm run midnight:network:up && npm run browser:e2e:prepare && npm run test:e2e:local --workspace @aptor/web; status=$?; npm run midnight:network:down; exit $status",
     "contract:build": "npm --prefix contracts/aptor-credential run build",
     "contract:compile": "npm --prefix contracts/aptor-credential run compact",
     "contract:test": "npm --prefix contracts/aptor-credential test",
@@ -25,10 +27,14 @@
     "midnight:network:up": "npm run network:up --workspace @aptor/midnight",
     "midnight:test:local": "npm run test:local --workspace @aptor/midnight",
     "midnight:test:network": "npm run test:network:local --workspace @aptor/midnight",
+    "security:scan": "node scripts/security-scan.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
   },
   "devDependencies": {
     "next": "16.2.10",

@@ -1,15 +1,23 @@
 {
   "name": "@aptor/web",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
+    "zk:sync": "node scripts/sync-zk-artifacts.mjs",
+    "predev": "npm run build --workspace @aptor/browser && npm run zk:sync",
     "dev": "next dev",
+    "prebuild": "npm run build --workspace @aptor/browser && npm run zk:sync",
     "build": "next build",
     "start": "next start",
+    "start:e2e": "next start --hostname 127.0.0.1 --port 3100",
+    "pretest:e2e:local": "node e2e/build-server.mjs",
+    "test:e2e:local": "playwright test --config playwright.local.config.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aptor/browser": "0.1.0",
     "@aptor/shared": "0.1.0",
     "@fontsource-variable/ibm-plex-sans": "5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
@@ -19,6 +27,11 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
+    "@aptor/midnight": "0.1.0",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/testkit-js": "4.1.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",

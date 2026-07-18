@@ -50,3 +50,25 @@ state, decoded ledger data, API results, and deliberately public test logs.
 
 Local Level databases are written below `.midnight/private-state/`, removed
 after a completed test run, and ignored by Git.
+
+## Browser test adapter
+
+Milestone 5 keeps this Node package out of the production browser bundle. The
+Playwright LocalNet suite uses the official `DAppConnectorWalletAdapter` with
+`LocalWalletProvider`, then exposes only the connector methods a browser wallet
+would provide. The browser still assembles its own indexer, ZK, proof, wallet,
+transaction, and ephemeral private-state providers and executes real contract
+calls. No proof or ledger state is mocked.
+
+From the repository root:
+
+```bash
+npm run midnight:network:up
+npm run browser:e2e:prepare
+npm run test:e2e:local --workspace @aptor/web
+npm run midnight:network:down
+```
+
+The test deployment metadata and results live under ignored `.midnight/`
+paths. See `docs/PRODUCT_MILESTONE_5.md` for the recorded contract and
+transaction evidence.

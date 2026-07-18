@@ -1,8 +1,10 @@
 node_modules/
 .next/
+.next-playwright/
 out/
 dist/
 coverage/
+**/logs/
 *.tsbuildinfo
 
 .env
@@ -31,6 +33,7 @@ contracts/**/generated/
 contracts/**/dist/
 contracts/**/.private-state/
 contracts/**/proof-server-data/
+apps/web/public/zk/aptor/
 
 .git.invalid-backup*/
 

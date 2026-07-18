@@ -48,17 +48,17 @@ export class LocalWalletProvider implements MidnightProvider, WalletProvider {
 
   private constructor(
     readonly wallet: WalletFacade,
-    private readonly shieldedSecretKeys: ZswapSecretKeys,
-    private readonly dustSecretKey: DustSecretKey,
-    private readonly unshieldedKeystore: UnshieldedKeystore,
+    readonly zswapSecretKeys: ZswapSecretKeys,
+    readonly dustSecretKey: DustSecretKey,
+    readonly unshieldedKeystore: UnshieldedKeystore,
   ) {}
 
   getCoinPublicKey(): CoinPublicKey {
-    return this.shieldedSecretKeys.coinPublicKey;
+    return this.zswapSecretKeys.coinPublicKey;
   }
 
   getEncryptionPublicKey(): EncPublicKey {
-    return this.shieldedSecretKeys.encryptionPublicKey;
+    return this.zswapSecretKeys.encryptionPublicKey;
   }
 
   async balanceTx(
@@ -68,7 +68,7 @@ export class LocalWalletProvider implements MidnightProvider, WalletProvider {
     const recipe = await this.wallet.balanceUnboundTransaction(
       tx,
       {
-        shieldedSecretKeys: this.shieldedSecretKeys,
+        shieldedSecretKeys: this.zswapSecretKeys,
         dustSecretKey: this.dustSecretKey,
       },
       { ttl },

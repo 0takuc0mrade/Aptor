@@ -21,9 +21,11 @@ a credential signed by a key in the verifier's accepted issuer set. The receipt
 does not reveal which accepted issuer signed, the credential's exact values, or
 private client/project information.
 
-The cryptographic flow is implemented locally. The existing role interfaces
-are not yet connected to wallets, credential storage, or proof generation, and
-must not present fabricated activity while that integration remains pending.
+The role interfaces are connected to real local cryptography, encrypted
+IndexedDB vaults, portable Aptor files, the official Midnight connector API,
+request registration, proof generation, and public receipt queries. The
+validated end-to-end target is Midnight LocalNet; Preprod deployment remains
+future delivery work. No role page uses fabricated product activity.
 
 ## Positioning
 
@@ -31,7 +33,9 @@ Prove the work. Protect the details.
 
 ## Brand Personality
 
-Technical, discreet, and precise. Copy should explain what is proven, what remains private, and what is still simulated without turning cryptography into spectacle.
+Technical, discreet, precise, and independently expressive. The interface uses
+an editorial midnight/violet/cobalt language to give each real workflow a clear
+rhythm without turning cryptography into spectacle.
 
 ## Anti-references
 
@@ -41,10 +45,15 @@ Aptor must not resemble a generic crypto dashboard. Avoid glassmorphism, glowing
 
 1. Put the current role and next action ahead of platform jargon.
 2. Make privacy boundaries visible and understandable at the moment they matter.
-3. Distinguish real, planned, and simulated behavior in plain language.
+3. Distinguish real, planned, and unsupported behavior in plain language.
 4. Use familiar product controls and restrained motion so the workflow remains the focus.
 5. Never fill an empty product state with fabricated data.
 
 ## Accessibility & Inclusion
 
-No formal conformance level has been specified yet. The foundation provides semantic landmarks, keyboard-reachable role navigation, visible focus, touch-sized controls, readable contrast, responsive layouts, and reduced-motion behavior. A formal WCAG target should be agreed before the complete workflow is implemented.
+No formal conformance level has been certified. The implementation provides
+semantic landmarks, labeled inputs, keyboard-reachable role navigation,
+visible focus, touch-sized controls, readable contrast, responsive layouts,
+and reduced-motion behavior. Automated role-page checks cover 320, 375, 414,
+768, and 1440 pixel widths; a formal WCAG audit remains recommended before a
+public launch.
