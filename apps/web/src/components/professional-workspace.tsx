@@ -294,7 +294,7 @@ export function ProfessionalWorkspace() {
         request,
       );
       setStage("waiting-wallet");
-      const connected = wallet.getConnected();
+      const connected = await wallet.connect();
       setStage("proving");
       const assembly = await createBrowserProviders(
         connected,

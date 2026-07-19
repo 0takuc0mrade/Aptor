@@ -81,7 +81,7 @@ export function WalletPanel({ wallet }: { wallet: AptorWalletController }) {
             onClick={wallet.disconnect}
             type="button"
           >
-            Disconnect locally
+            Forget local connection
           </button>
         ) : (
           <button
@@ -102,6 +102,12 @@ export function WalletPanel({ wallet }: { wallet: AptorWalletController }) {
           Detect again
         </button>
       </div>
+      {connected ? (
+        <p className="form-hint">
+          Switching 1AM accounts? Revoke Aptor under 1AM Apps before connecting
+          the new account.
+        </p>
+      ) : null}
     </section>
   );
 }

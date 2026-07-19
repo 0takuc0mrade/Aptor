@@ -36,6 +36,9 @@ function connectedApi(overrides: Partial<ConnectedAPI> = {}): ConnectedAPI {
     getUnshieldedAddress: async () => ({
       unshieldedAddress: "mn_addr_123456789",
     }),
+    getDustAddress: async () => ({
+      dustAddress: "mn_dust_123456789",
+    }),
     getDustBalance: async () => ({ balance: 10n, cap: 100n }),
     hintUsage: async () => undefined,
     getProvingProvider: async () => ({
@@ -71,6 +74,7 @@ function connectedWallet(api: ConnectedAPI): ConnectedWallet {
     api,
     network: "undeployed",
     address: "mn_addr_123456789",
+    dustAddress: "mn_dust_123456789",
     dustBalance: 10n,
     dustCap: 100n,
   };
@@ -181,6 +185,55 @@ test("browser provider assembly succeeds with an official proving API", async ()
     assert.ok(result.providers.proofProvider);
     assert.ok(result.providers.walletProvider);
     await result.privateStateProvider.dispose();
+  });
+});
+
+test("browser provider assembly rejects a changed wallet account", async () => {
+  await withFetch(availableArtifactFetch, async () => {
+    await assert.rejects(
+      createBrowserProviders(
+        connectedWallet(
+          connectedApi({
+            getDustAddress: async () => ({
+              dustAddress: "mn_dust_different_account",
+            }),
+          }),
+        ),
+        "https://aptor.invalid/zk",
+      ),
+      (error: unknown) =>
+        error instanceof AptorError && error.code === "WALLET_ACCOUNT_CHANGED",
+    );
+  });
+});
+
+test("browser provider translates ledger error 170 into DUST recovery guidance", async () => {
+  await withFetch(availableArtifactFetch, async () => {
+    const result = await createBrowserProviders(
+      connectedWallet(
+        connectedApi({
+          submitTransaction: async () => {
+            throw new Error(
+              "1010: Invalid Transaction: Custom error: 170: SubmissionError",
+            );
+          },
+        }),
+      ),
+      "https://aptor.invalid/zk",
+    );
+    try {
+      await assert.rejects(
+        result.providers.midnightProvider.submitTx({
+          identifiers: () => ["transaction-id"],
+          serialize: () => new Uint8Array([1]),
+        } as never),
+        (error: unknown) =>
+          error instanceof AptorError &&
+          error.code === "INVALID_DUST_SPEND_PROOF",
+      );
+    } finally {
+      await result.privateStateProvider.dispose();
+    }
   });
 });
 

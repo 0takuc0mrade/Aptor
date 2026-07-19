@@ -187,7 +187,7 @@ export function VerifierWorkspace() {
     try {
       const contractAddress = requireContractAddress();
       setStage("waiting-wallet");
-      const connected = wallet.getConnected();
+      const connected = await wallet.connect();
       setStage("proving");
       const { providers, privateStateProvider } = await createBrowserProviders(
         connected,

@@ -47,9 +47,35 @@ export type ConnectedWallet = Readonly<{
   api: ConnectedAPI;
   network: AptorNetwork;
   address: string;
+  dustAddress: string;
   dustBalance: bigint;
   dustCap: bigint;
 }>;
+
+async function assertWalletSessionCurrent(
+  connected: ConnectedWallet,
+): Promise<void> {
+  const [{ unshieldedAddress }, { dustAddress }, dust] = await Promise.all([
+    connected.api.getUnshieldedAddress(),
+    connected.api.getDustAddress(),
+    connected.api.getDustBalance(),
+  ]);
+  if (
+    unshieldedAddress !== connected.address ||
+    dustAddress !== connected.dustAddress
+  ) {
+    throw new AptorError(
+      "WALLET_ACCOUNT_CHANGED",
+      "The active 1AM account changed after Aptor connected. Revoke Aptor in 1AM Apps, select the DUST-funded account, and connect again.",
+    );
+  }
+  if (dust.balance <= 0n) {
+    throw new AptorError(
+      "INSUFFICIENT_DUST",
+      "The connected 1AM account has no spendable DUST. Select the DUST-funded account and reconnect before submitting.",
+    );
+  }
+}
 
 function isCompatibleVersion(value: string): boolean {
   const major = Number.parseInt(value.split(".")[0] ?? "", 10);
@@ -111,8 +137,9 @@ export async function connectWallet(
         `The wallet services target ${config.networkId}, not ${network}.`,
       );
     }
-    const [{ unshieldedAddress }, dust] = await Promise.all([
+    const [{ unshieldedAddress }, { dustAddress }, dust] = await Promise.all([
       api.getUnshieldedAddress(),
+      api.getDustAddress(),
       api.getDustBalance(),
     ]);
     return {
@@ -120,6 +147,7 @@ export async function connectWallet(
       api,
       network,
       address: unshieldedAddress,
+      dustAddress,
       dustBalance: dust.balance,
       dustCap: dust.cap,
     };
@@ -157,6 +185,7 @@ export async function createBrowserProviders(
       AptorCredentialPrivateState
     >();
   const { api } = connected;
+  await assertWalletSessionCurrent(connected);
   const status = await api.getConnectionStatus();
   if (status.status !== "connected") {
     throw new AptorError(
@@ -197,6 +226,7 @@ export async function createBrowserProviders(
       getCoinPublicKey: () => shielded.shieldedCoinPublicKey,
       getEncryptionPublicKey: () => shielded.shieldedEncryptionPublicKey,
       async balanceTx(tx: UnboundTransaction): Promise<FinalizedTransaction> {
+        await assertWalletSessionCurrent(connected);
         const result = await api.balanceUnsealedTransaction(
           bytesToHex(tx.serialize()),
         );
@@ -217,7 +247,24 @@ export async function createBrowserProviders(
             "The finalized transaction has no identifier.",
           );
         }
-        await api.submitTransaction(bytesToHex(tx.serialize()));
+        try {
+          await api.submitTransaction(bytesToHex(tx.serialize()));
+        } catch (error) {
+          const detail =
+            error instanceof Error ? error.message : String(error ?? "");
+          if (/Custom error:\s*170|InvalidDustSpendProof/iu.test(detail)) {
+            throw new AptorError(
+              "INVALID_DUST_SPEND_PROOF",
+              "1AM produced a DUST spend proof that Preprod rejected. In 1AM Apps, revoke Aptor, select the synced DUST-funded account, then reconnect and build a fresh transaction.",
+              { cause: error },
+            );
+          }
+          throw new AptorError(
+            "TRANSACTION_SUBMISSION_FAILED",
+            "1AM could not submit the finalized transaction. Check its transaction history before retrying.",
+            { cause: error },
+          );
+        }
         return identifier;
       },
     };
