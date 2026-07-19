@@ -36,6 +36,11 @@ contracts/**/.private-state/
 contracts/**/proof-server-data/
 apps/web/public/zk/aptor/
 
+# The public release pins the generated Compact bundle used by the browser.
+# apps/web/public remains derived; this compiler output is the source boundary.
+!contracts/aptor-credential/generated/
+!contracts/aptor-credential/generated/**
+
 .git.invalid-backup*/
 
 .DS_Store

@@ -21,3 +21,19 @@ test("proof-scoped private state is contract-scoped and clears completely", asyn
   await assert.rejects(provider.exportPrivateStates());
   await provider.dispose();
 });
+
+test("deployment private state is scoped once the contract address exists", async () => {
+  const provider = new EphemeralPrivateStateProvider<
+    "state",
+    { secret: string }
+  >();
+  await provider.set("state", { secret: "deployment-only" });
+  assert.deepEqual(await provider.get("state"), {
+    secret: "deployment-only",
+  });
+  provider.setContractAddress("deployed-contract");
+  assert.deepEqual(await provider.get("state"), {
+    secret: "deployment-only",
+  });
+  await provider.dispose();
+});

@@ -93,6 +93,13 @@ export async function handleDeliveryRequest(
 ): Promise<Response> {
   try {
     const method = request.method.toUpperCase();
+    if (method === "GET" && path.join("/") === "health") {
+      return json({
+        status: "ok",
+        storage: "sqlite",
+        ...delivery.database.health(),
+      });
+    }
     if (method === "POST" && path[0] === "profiles" && path.length === 1) {
       const body = z
         .object({ profile: z.unknown(), accessTokenHash: z.string() })
@@ -244,6 +251,19 @@ export async function handleDeliveryRequest(
       500,
     );
   }
+}
+
+export function getDeliveryHealth(): Readonly<{
+  status: "ok";
+  storage: "sqlite";
+  schemaVersion: number;
+  writable: true;
+}> {
+  return {
+    status: "ok",
+    storage: "sqlite",
+    ...service().database.health(),
+  };
 }
 
 export function resetDeliveryServiceForTests(): void {

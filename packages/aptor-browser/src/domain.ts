@@ -444,6 +444,34 @@ export function createPrivateStateForRequest(
   });
 }
 
+/**
+ * Produces a valid, memory-only witness state required by Midnight.js while
+ * constructing the contract deployment transaction. It is not persisted,
+ * published, or represented as product activity.
+ */
+export function createDeploymentPrivateState(): AptorCredentialPrivateState {
+  const professional = createProfessionalVault();
+  const issuer = createIssuerVault("Aptor deployment authority");
+  const credential = issueCredential(issuer, {
+    holderProfile: professional.profile,
+    skills: ["Deployment"],
+    durationMonths: 1,
+    deliveredToProduction: true,
+    clientRatingHundredths: 500,
+  });
+  const request = finalizeRequestPackage(
+    "preprod",
+    "aptor-deployment-private-state",
+    {
+      acceptedIssuerProfiles: [issuer.profile],
+      requiredSkill: "Deployment",
+      requireProductionDelivery: true,
+    },
+    "aptor-deployment-private-state",
+  );
+  return createPrivateStateForRequest(professional, credential, request);
+}
+
 export function portableRequestToContractRequest(
   requestPackage: AptorProofRequestPackageV1,
 ): ProofRequestV1 {

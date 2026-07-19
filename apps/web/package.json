@@ -10,6 +10,7 @@
     "prebuild": "npm run build --workspace @aptor/shared && npm run build --workspace @aptor/browser && npm run build --workspace @aptor/delivery && npm run zk:sync",
     "build": "next build",
     "start": "next start",
+    "start:production": "next start --hostname 0.0.0.0",
     "start:e2e": "next start --hostname 127.0.0.1 --port 3100",
     "pretest:e2e:local": "node e2e/build-server.mjs",
     "test:e2e:local": "playwright test --config playwright.local.config.ts",

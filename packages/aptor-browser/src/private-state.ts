@@ -25,10 +25,15 @@ export class EphemeralPrivateStateProvider<
 > implements PrivateStateProvider<PSI, PS> {
   #contractAddress: ContractAddress | null = null;
   readonly #states = new Map<string, PS>();
+  readonly #deploymentStates = new Map<PSI, PS>();
   readonly #signingKeys = new Map<ContractAddress, SigningKey>();
 
   setContractAddress(address: ContractAddress): void {
     this.#contractAddress = address;
+    for (const [id, state] of this.#deploymentStates) {
+      this.#states.set(this.#stateKey(id), state);
+    }
+    this.#deploymentStates.clear();
   }
 
   #stateKey(id: PSI): string {
@@ -39,19 +44,31 @@ export class EphemeralPrivateStateProvider<
   }
 
   async set(id: PSI, state: PS): Promise<void> {
+    if (this.#contractAddress === null) {
+      this.#deploymentStates.set(id, state);
+      return;
+    }
     this.#states.set(this.#stateKey(id), state);
   }
 
   async get(id: PSI): Promise<PS | null> {
+    if (this.#contractAddress === null) {
+      return this.#deploymentStates.get(id) ?? null;
+    }
     return this.#states.get(this.#stateKey(id)) ?? null;
   }
 
   async remove(id: PSI): Promise<void> {
+    if (this.#contractAddress === null) {
+      this.#deploymentStates.delete(id);
+      return;
+    }
     this.#states.delete(this.#stateKey(id));
   }
 
   async clear(): Promise<void> {
     this.#states.clear();
+    this.#deploymentStates.clear();
   }
 
   async setSigningKey(

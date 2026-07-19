@@ -1919,6 +1919,152 @@ p {
   transform: translateY(1px);
 }
 
+.release-console {
+  --role-accent: var(--color-accent-secondary);
+  display: grid;
+  gap: var(--space-2xl);
+}
+
+.release-console__hero {
+  min-height: 19rem;
+  padding-block: var(--space-xl) var(--space-2xl);
+  display: grid;
+  align-content: end;
+  gap: var(--space-md);
+  border-block-start: var(--rule-strong) solid var(--role-accent);
+  border-block-end: var(--rule-strong) solid var(--color-rule-strong);
+}
+
+.release-console__hero > p:last-child {
+  max-width: 64ch;
+  color: var(--color-neutral);
+}
+
+.release-console__configuration,
+.release-console__checks,
+.release-console__approval,
+.release-console__evidence,
+.release-console__wallet {
+  min-width: 0;
+  padding: var(--space-lg);
+  border-block: var(--rule-hairline) solid var(--color-rule-strong);
+  background: var(--color-paper-3);
+}
+
+.release-facts {
+  margin-block-start: var(--space-xl);
+  display: grid;
+}
+
+.release-facts > div {
+  min-width: 0;
+  padding-block: var(--space-sm);
+  display: grid;
+  gap: var(--space-xs);
+  border-block-start: var(--rule-hairline) solid var(--color-rule);
+}
+
+.release-facts dt {
+  color: var(--color-neutral);
+  font-size: var(--text-sm);
+}
+
+.release-facts dd,
+.release-console__evidence pre {
+  overflow-wrap: anywhere;
+  font-family: var(--font-outlier);
+  font-size: var(--text-sm);
+}
+
+.release-check-list {
+  margin-block-start: var(--space-xl);
+  display: grid;
+  list-style: none;
+}
+
+.release-check-list li {
+  padding-block: var(--space-md);
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: var(--space-md);
+  border-block-start: var(--rule-hairline) solid var(--color-rule);
+}
+
+.release-check-list li > span {
+  color: var(--color-success);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.release-check-list li[data-status="fail"] > span {
+  color: var(--color-error);
+}
+
+.release-check-list li[data-status="skip"] > span {
+  color: var(--color-warning);
+}
+
+.release-check-list li div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.release-check-list p {
+  color: var(--color-neutral);
+  font-size: var(--text-sm);
+}
+
+.release-console__wallet > .action-button {
+  margin-block-start: var(--space-lg);
+}
+
+.release-wallet-feedback {
+  margin-block-start: var(--space-md);
+  padding-block: var(--space-sm);
+  border-block: var(--rule-hairline) solid var(--color-rule);
+  color: var(--color-neutral);
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+}
+
+.release-wallet-feedback--progress {
+  color: var(--color-focus);
+}
+
+.release-wallet-feedback--success {
+  color: var(--color-success);
+}
+
+.release-wallet-feedback--error {
+  color: var(--color-error);
+}
+
+.release-console__approval {
+  border-color: var(--color-warning);
+}
+
+.release-console__approval .field {
+  margin-block: var(--space-xl) var(--space-lg);
+}
+
+.release-console__evidence {
+  border-color: var(--color-success);
+}
+
+.release-console__evidence pre {
+  max-width: 100%;
+  margin-block-start: var(--space-xl);
+  padding: var(--space-md);
+  overflow: auto;
+  border: var(--rule-hairline) solid var(--color-rule-strong);
+  background: var(--color-paper);
+  color: var(--color-neutral);
+  white-space: pre-wrap;
+}
+
 @media (min-width: 24rem) {
   .role-switcher__link > span {
     display: inline;
@@ -2654,6 +2800,41 @@ p {
 
   .role-workspace[data-role="verifier"] .wallet-panel {
     grid-column: auto;
+  }
+
+  .release-console {
+    grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.75fr);
+    grid-template-areas:
+      "hero hero"
+      "configuration configuration"
+      "checks checks"
+      "wallet approval"
+      "evidence evidence";
+    align-items: start;
+  }
+
+  .release-console__hero {
+    grid-area: hero;
+  }
+
+  .release-console__configuration {
+    grid-area: configuration;
+  }
+
+  .release-console__checks {
+    grid-area: checks;
+  }
+
+  .release-console__wallet {
+    grid-area: wallet;
+  }
+
+  .release-console__approval {
+    grid-area: approval;
+  }
+
+  .release-console__evidence {
+    grid-area: evidence;
   }
 }
 

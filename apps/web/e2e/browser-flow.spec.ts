@@ -487,16 +487,32 @@ test("three browser profiles complete the real Aptor LocalNet flow", async ({
     professional.getByText("Connected", { exact: true }),
   ).toBeVisible();
   console.info("[browser-flow] generating and submitting proof");
-  await professional
-    .getByRole("button", { name: "Generate and submit proof" })
-    .click();
-  await expect(
-    professional.getByText(
-      "Proof finalized. The Verifier will see the fulfilled receipt automatically.",
-    ),
-  ).toBeVisible({
-    timeout: 900_000,
+  const submitProof = professional.getByRole("button", {
+    name: "Generate and submit proof",
   });
+  const proofSuccess = professional.getByText(
+    "Proof finalized. The Verifier will see the fulfilled receipt automatically.",
+  );
+  const proofFailure = professional.locator(
+    ".form-message.form-message--error[role='alert']",
+  );
+  await submitProof.click();
+  await expect(proofSuccess.or(proofFailure)).toBeVisible({ timeout: 900_000 });
+  if (await proofFailure.isVisible()) {
+    const message = (await proofFailure.textContent()) ?? "";
+    if (
+      !/getParams promise resolved to error: TypeError: terminated/iu.test(
+        message,
+      )
+    ) {
+      throw new Error(`LocalNet proof failed: ${message}`);
+    }
+    console.info(
+      "[browser-flow] retrying once after the verified parameter host terminated its response",
+    );
+    await submitProof.click();
+  }
+  await expect(proofSuccess).toBeVisible({ timeout: 900_000 });
   const receipt = professional.locator(".receipt-card");
   const fulfillmentTransactionId = await receipt
     .locator("div")

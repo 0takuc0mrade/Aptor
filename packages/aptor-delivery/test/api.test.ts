@@ -74,6 +74,26 @@ test("API creates and reads profiles without exposing access-token hashes", asyn
   }
 });
 
+test("API health confirms the SQLite schema is writable without authentication", async () => {
+  const { database, service } = apiFixture();
+  try {
+    const response = await handleDeliveryRequest(
+      request("/health", "GET"),
+      ["health"],
+      service,
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      status: "ok",
+      storage: "sqlite",
+      schemaVersion: 1,
+      writable: true,
+    });
+  } finally {
+    database.close();
+  }
+});
+
 test("API rejects unauthorized inbox access, sender mismatch, expired capabilities, and oversized ciphertext", async () => {
   const { database, service, professional, verifier, verifierToken } =
     apiFixture();

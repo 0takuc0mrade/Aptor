@@ -14,11 +14,12 @@ import {
   type AptorProofRequestPackageV1,
 } from "@aptor/browser";
 import type { AptorProfileV1, AptorRequestTrackingV1 } from "@aptor/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAptorWallet } from "@/hooks/use-aptor-wallet";
 import {
   APTOR_CONTRACT_ADDRESS,
+  APTOR_ARTIFACT_FINGERPRINT,
   APTOR_INDEXER_URL,
   APTOR_INDEXER_WS_URL,
   APTOR_NETWORK,
@@ -67,7 +68,6 @@ export function VerifierWorkspace() {
   const accountValue = account.value;
   const refreshAccountNotifications = account.refreshNotifications;
   const wallet = useAptorWallet();
-  const pollingStartedAt = useRef(0);
   const [professional, setProfessional] = useState<AptorProfileV1 | null>(null);
   const [draft, setDraft] = useState<RequestDraft | null>(null);
   const [registeredPackage, setRegisteredPackage] =
@@ -123,13 +123,11 @@ export function VerifierWorkspace() {
       accountValue.verifier.activeRequests.length === 0
     )
       return;
-    pollingStartedAt.current = Date.now();
     let timeout = 0;
     let failures = 0;
     let cancelled = false;
     const poll = async () => {
-      if (cancelled || Date.now() - pollingStartedAt.current > 10 * 60 * 1_000)
-        return;
+      if (cancelled) return;
       try {
         await refreshStatuses();
         failures = 0;
@@ -194,6 +192,7 @@ export function VerifierWorkspace() {
       const { providers, privateStateProvider } = await createBrowserProviders(
         connected,
         APTOR_ZK_ARTIFACTS_URL,
+        { expectedArtifactFingerprint: APTOR_ARTIFACT_FINGERPRINT },
       );
       try {
         const contract = await AptorBrowserContract.connect(

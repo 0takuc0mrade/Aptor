@@ -2,14 +2,49 @@
 
 ## Status
 
-Milestone 6 adds a device-bound, multi-role Aptor profile and an encrypted
-delivery plane without changing the Compact contract. Every private role state,
+Milestone 7 prepares the existing device-bound, multi-role product for a public
+Preprod release without changing its Compact logic. Every private role state,
 the raw account capability, and the P-256 private encryption key persist only
-inside one encrypted IndexedDB account vault. SQLite routes encrypted envelopes
-and caches public status; Midnight remains authoritative for request
-registration, proof fulfillment, and replay state.
+inside one encrypted IndexedDB account vault. Durable SQLite routes encrypted
+envelopes and caches public status; Midnight remains authoritative for request
+registration, proof fulfillment, and replay state. The Compact contract is
+deployed and indexer-queryable on Preprod at
+`86577ec2059e8e0ee13216e6e92d90dda54cae79d75118e1e8ed81beb8becff4`;
+public hosting and the real request/fulfillment scenario remain pending.
 
 ## System context
+
+```mermaid
+flowchart LR
+  subgraph Browser["Browser-private boundary"]
+    Vault["Encrypted IndexedDB vault"]
+    Crypto["Credential signing, decryption, matching, witness assembly"]
+    Wallet["1AM Connector v4\nwallet-approved proving and submission"]
+    Vault --> Crypto --> Wallet
+  end
+
+  subgraph Delivery["Aptor Node service"]
+    API["Validated delivery API"]
+    DB[("Durable SQLite\nciphertext + routing metadata")]
+    API --> DB
+  end
+
+  subgraph Midnight["Public Midnight Preprod"]
+    Contract["Request commitments\nfulfilled request IDs"]
+    Indexer["Public indexer state"]
+    Contract --> Indexer
+  end
+
+  Crypto -- "encrypted envelopes" --> API
+  API -- "ciphertext envelopes" --> Crypto
+  Wallet -- "approved registration / proof tx" --> Contract
+  Indexer -- "public receipt query" --> Browser
+```
+
+The server can observe profile identifiers, routing relationships, envelope
+type and size, delivery timing, public request IDs, and public transaction IDs.
+Credential plaintext, private work values, vault secrets, issuer keys, and
+witness material remain inside the browser-private boundary.
 
 ```text
 Professional browser        Aptor delivery service          Issuer / Verifier
@@ -161,10 +196,12 @@ profile. The server stores only a SHA-256 hash of the browser-generated
 256-bit access capability. SHA-256 is appropriate because the input is a
 uniform, high-entropy bearer capability rather than a human password.
 
-SQLite is the local durable adapter. All queries are prepared, migrations are
+SQLite is the durable MVP adapter. All queries are prepared, migrations are
 versioned in source, foreign keys are enabled, and WAL mode supports concurrent
-local reads. A hosted deployment should replace this adapter with managed
-PostgreSQL or compatible SQL while preserving the service interfaces and
+reads. The Railway deployment attaches one persistent volume at `/data` and
+stores the database at `/data/aptor.sqlite`. This deliberately limits the MVP
+to one service instance; a future multi-instance deployment would replace only
+the adapter with managed SQL while preserving the service interfaces and
 authorization checks.
 
 The server observes public profiles, sender/recipient relationships, envelope
@@ -195,9 +232,10 @@ Official references:
 
 ## Remaining decisions
 
-1. Preprod deployment and supported 1AM wallet release matrix.
+1. Public-host authorization, the real Preprod request/proof scenario, and its
+   release evidence.
 2. Production identity, recovery, capability renewal, and multi-device sync.
-3. Hosted SQL adapter, reverse-proxy limits, and distributed rate limiting.
+3. Multi-instance database adapter, backup automation, and distributed rate limiting.
 4. Issuer domain/legal-identity verification and key rotation.
 5. Credential expiry, revocation, and request expiration.
 6. Multi-skill and multi-credential proof composition.

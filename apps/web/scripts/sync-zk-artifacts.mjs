@@ -1,4 +1,12 @@
-import { access, copyFile, mkdir, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  access,
+  copyFile,
+  mkdir,
+  readFile,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,7 +17,7 @@ const sourceRoot = path.resolve(
   "../../contracts/aptor-credential/generated/aptor",
 );
 const destinationRoot = path.resolve(appRoot, "public/zk/aptor");
-const files = [
+const artifactFiles = [
   "keys/createProofRequest.prover",
   "keys/createProofRequest.verifier",
   "keys/proveAgainstRequest.prover",
@@ -17,8 +25,19 @@ const files = [
   "zkir/createProofRequest.bzkir",
   "zkir/proveAgainstRequest.bzkir",
 ];
+const sourceFiles = [
+  "src/aptor.compact",
+  "src/schnorr.compact",
+  "generated/aptor/compiler/contract-info.json",
+  "generated/aptor/contract/index.js",
+];
 
-for (const file of files) {
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+const artifactHashes = {};
+for (const file of artifactFiles) {
   const source = path.join(sourceRoot, file);
   await access(source);
   const fileStat = await stat(source);
@@ -28,6 +47,39 @@ for (const file of files) {
   const destination = path.join(destinationRoot, file);
   await mkdir(path.dirname(destination), { recursive: true });
   await copyFile(source, destination);
+  artifactHashes[file] = sha256(await readFile(source));
 }
 
-console.log(`Validated and staged ${files.length} Aptor ZK artifacts.`);
+const contractRoot = path.resolve(appRoot, "../../contracts/aptor-credential");
+const sourceHashes = {};
+for (const file of sourceFiles) {
+  sourceHashes[file] = sha256(await readFile(path.join(contractRoot, file)));
+}
+const contractInfo = JSON.parse(
+  await readFile(
+    path.join(contractRoot, "generated/aptor/compiler/contract-info.json"),
+    "utf8",
+  ),
+);
+const fingerprintInput = {
+  contractName: "AptorCredential",
+  compilerVersion: contractInfo["compiler-version"],
+  languageVersion: contractInfo["language-version"],
+  runtimeVersion: contractInfo["runtime-version"],
+  sources: sourceHashes,
+  artifacts: artifactHashes,
+};
+const manifest = {
+  schemaVersion: 1,
+  ...fingerprintInput,
+  fingerprint: sha256(JSON.stringify(fingerprintInput)),
+};
+await writeFile(
+  path.join(destinationRoot, "manifest.json"),
+  `${JSON.stringify(manifest, null, 2)}\n`,
+  "utf8",
+);
+
+console.log(
+  `Validated and staged ${artifactFiles.length} Aptor ZK artifacts (${manifest.fingerprint}).`,
+);

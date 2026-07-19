@@ -11,6 +11,22 @@ export type PublicRequestQuery = Readonly<{
   commitmentMatches: boolean;
 }>;
 
+export async function queryContractPresence(
+  config: Readonly<{
+    network: AptorNetwork;
+    indexerUrl: string;
+    indexerWsUrl: string;
+    contractAddress: string;
+  }>,
+): Promise<boolean> {
+  setNetworkId(config.network);
+  const provider = indexerPublicDataProvider(
+    config.indexerUrl,
+    config.indexerWsUrl,
+  );
+  return (await provider.queryContractState(config.contractAddress)) !== null;
+}
+
 export async function queryPublicRequest(
   config: Readonly<{
     network: AptorNetwork;

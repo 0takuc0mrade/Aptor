@@ -112,11 +112,16 @@ if (
 }
 
 const rootEntries = await readdir(repositoryRoot, { withFileTypes: true });
+const allowedEnvironmentExamples = new Set([
+  ".env.example",
+  ".env.preprod.example",
+  ".env.preview.example",
+]);
 for (const entry of rootEntries) {
   if (
     entry.isFile() &&
     entry.name.startsWith(".env") &&
-    entry.name !== ".env.example"
+    !allowedEnvironmentExamples.has(entry.name)
   ) {
     findings.push(
       `${entry.name}: non-example environment file is present at repository root`,

@@ -9,6 +9,7 @@
     "contracts/*"
   ],
   "scripts": {
+    "prebuild": "npm run contract:build",
     "build": "npm run build --workspace @aptor/web",
     "delivery:migrate": "npm run migrate --workspace @aptor/delivery",
     "delivery:test": "npm run test --workspace @aptor/delivery",
@@ -18,7 +19,10 @@
     "contract:compile": "npm --prefix contracts/aptor-credential run compact",
     "contract:test": "npm --prefix contracts/aptor-credential test",
     "contract:typecheck": "npm --prefix contracts/aptor-credential run typecheck",
+    "predev": "npm run contract:build",
     "dev": "npm run dev --workspace @aptor/web",
+    "predev:preprod": "npm run contract:build && npm run build --workspace @aptor/shared && npm run build --workspace @aptor/browser && npm run build --workspace @aptor/delivery && npm run zk:sync --workspace @aptor/web",
+    "dev:preprod": "node scripts/start-preprod-deployment.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "npm run lint --workspace @aptor/web",
@@ -30,6 +34,9 @@
     "midnight:test:local": "npm run test:local --workspace @aptor/midnight",
     "midnight:test:network": "npm run test:network:local --workspace @aptor/midnight",
     "security:scan": "node scripts/security-scan.mjs",
+    "release:bundle:check": "node scripts/verify-production-bundle.mjs",
+    "release:smoke": "node scripts/smoke-production.mjs",
+    "start:production": "npm run delivery:migrate && npm run start:production --workspace @aptor/web",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "engines": {

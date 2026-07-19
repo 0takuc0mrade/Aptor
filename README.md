@@ -4,6 +4,24 @@
 
 Aptor lets professionals prove confidential work experience without exposing client IP, private repositories, internal metrics, exact ratings, project names, or client identities.
 
+This project is built on the Midnight Network.
+
+## Public release status
+
+The Aptor Compact contract is deployed and independently queryable on Midnight
+Preprod. The one-time deployment used the real 1AM Connector v4 proving path
+and the exact staged artifact fingerprint. Public Railway hosting and the real
+request/fulfillment scenario remain at their human-action checkpoints.
+
+| Release item      | Current value                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Live application  | Pending Railway project, volume, variables, and generated domain                                                                  |
+| Preprod contract  | `86577ec2059e8e0ee13216e6e92d90dda54cae79d75118e1e8ed81beb8becff4`                                                                |
+| Deployment block  | `1717550`                                                                                                                         |
+| Midnight Explorer | [Preprod Explorer](https://preprod.midnightexplorer.com)                                                                          |
+| 1AM deployment    | [Successful deployment transaction](https://explorer.1am.xyz/tx/ada1036389941b4cc87385300f0288c05746cec707648266599e1657cbdc5cf3) |
+| Demo video        | Pending final public scenario                                                                                                     |
+
 A previous client or employer issues a private work credential. A future employer creates a bounded proof request. The professional selects a credential and uses Midnight to prove that its private attributes satisfy the request. The verifier receives only the requested pass/fail results.
 
 ## The problem
@@ -70,17 +88,17 @@ aptor/
 
 ## What is real and what is simulated
 
-| Area               | Implemented now                                                                       | Later target                                      |
-| ------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Domain model       | Runtime-validated profiles, invitations, envelopes, credentials, requests, and vaults | Expiry and revocation formats                     |
-| Frontend           | Responsive Issuer, Professional, and Verifier workflows                               | Public share links and account sync               |
-| Credential signing | Real Jubjub Schnorr signing; encrypted issuer vault                                   | Legal identity policy and key rotation            |
-| Midnight contract  | Private issuer/skill membership and four request-bound predicates                     | Expiry, revocation, and multi-credential policies |
-| Proof generation   | Real browser-triggered proofs and finalized LocalNet transactions                     | Public test-network deployment                    |
-| Wallet             | Official DApp Connector discovery and connected wallet API                            | Submission-network wallet compatibility matrix    |
-| Local storage      | One AES-GCM/PBKDF2 IndexedDB account vault with every role state                      | Multi-device recovery                             |
-| Delivery service   | SQLite, hashed capabilities, ciphertext envelopes, notifications, status cache        | Hosted SQL adapter and production identity        |
-| Proof results      | Automatic registration, proof-submitted, and fulfilled states from chain queries      | Shareable public receipt links                    |
+| Area               | Implemented now                                                                                     | Later target                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Domain model       | Runtime-validated profiles, invitations, envelopes, credentials, requests, and vaults               | Expiry and revocation formats                      |
+| Frontend           | Responsive Issuer, Professional, and Verifier workflows                                             | Public share links and account sync                |
+| Credential signing | Real Jubjub Schnorr signing; encrypted issuer vault                                                 | Legal identity policy and key rotation             |
+| Midnight contract  | Private issuer/skill membership and four request-bound predicates                                   | Expiry, revocation, and multi-credential policies  |
+| Proof generation   | Real browser-triggered LocalNet proofs; 1AM proving-provider and deployment verified on Preprod     | One real Preprod request proof                     |
+| Wallet             | Official Connector API v4 and wallet-provided proving; 1AM release gate                             | Broader wallet compatibility matrix                |
+| Local storage      | One AES-GCM/PBKDF2 IndexedDB account vault with every role state                                    | Multi-device recovery                              |
+| Delivery service   | SQLite, hashed capabilities, ciphertext envelopes, notifications, status cache, Railway volume plan | Multi-instance SQL adapter and production identity |
+| Proof results      | Automatic registration, proof-submitted, and fulfilled states from chain queries                    | Shareable public receipt links                     |
 
 ## Getting started
 
@@ -102,8 +120,14 @@ Professional, or Verifier workspace from the role navigation.
 
 Browser proof actions require the public `NEXT_PUBLIC_APTOR_*` values described
 in `.env.example`. The app uses the selected network and configured contract;
-it does not invent a deployment. Milestone 6 remains a LocalNet milestone and
-does not deploy to Preprod.
+it does not invent a deployment. Copy `.env.preprod.example` for the public
+release and replace its contract, fingerprint, and host placeholders only with
+observed values.
+
+The public browser path uses the proving provider exposed by 1AM through DApp
+Connector API v4. Aptor does not configure a hosted proof-server URL and never
+falls back to mocked proving. LocalNet regression tests continue to use the
+repository's pinned local proof server.
 
 Compile and test the Compact contract:
 
@@ -149,7 +173,19 @@ or mnemonic.
 - **Generated proving artifacts** — the compiler emitted the prover key, verifier key, ZKIR, and generated bindings.
 - **Proof-server-generated ZK proof** — the HTTP proof provider invoked the running proof server for a real call transaction.
 - **Locally finalized Midnight transaction** — the local node accepted the transaction and the indexer returned finalized public data.
-- **Public Preview/Preprod deployment** — a separately funded remote test-network deployment; this has not been attempted unless explicitly recorded in the milestone report.
+- **Public Preprod deployment** — the finalized contract deployment recorded in
+  `docs/PREPROD_EVIDENCE.md`; it does not by itself prove that the later
+  request/fulfillment scenario has run.
+
+## Public hosting model
+
+`railway.json` defines one long-running Next.js service with a health check and
+restart policy. Attach one Railway volume at `/data`; the SQLite delivery
+database is stored at `/data/aptor.sqlite`, and migrations run inside the start
+command where the volume is available. Keep one replica while Aptor uses
+SQLite. Repository access, volume creation, domain generation, and any usage or
+billing impact remain explicit human checkpoints. See
+[production hosting](docs/PRODUCTION_HOSTING.md).
 
 ## Quality commands
 
@@ -176,6 +212,11 @@ npm run security:scan
 - [Delivery service](docs/DELIVERY_SERVICE.md)
 - [Envelope encryption](docs/ENVELOPE_ENCRYPTION.md)
 - [In-app user flow](docs/IN_APP_USER_FLOW.md)
+- [Preprod deployment](docs/PREPROD_DEPLOYMENT.md)
+- [Preprod evidence](docs/PREPROD_EVIDENCE.md)
+- [Production hosting](docs/PRODUCTION_HOSTING.md)
+- [Two-minute demo script](docs/DEMO_SCRIPT.md)
+- [Submission checklist](docs/SUBMISSION_CHECKLIST.md)
 
 ## Security baseline
 

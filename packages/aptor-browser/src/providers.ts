@@ -48,11 +48,20 @@ export type ConnectedWallet = Readonly<{
   network: AptorNetwork;
   address: string;
   dustBalance: bigint;
+  dustCap: bigint;
 }>;
 
 function isCompatibleVersion(value: string): boolean {
   const major = Number.parseInt(value.split(".")[0] ?? "", 10);
   return major === 4;
+}
+
+export function isOneAmWallet(
+  wallet: Pick<DiscoveredWallet, "id" | "name" | "rdns">,
+): boolean {
+  return /(?:^|[^a-z0-9])1am(?:[^a-z0-9]|$)/iu.test(
+    `${wallet.id} ${wallet.name} ${wallet.rdns}`,
+  );
 }
 
 export function discoverWallets(
@@ -69,7 +78,11 @@ export function discoverWallets(
       rdns: api.rdns,
       apiVersion: api.apiVersion,
       api,
-    }));
+    }))
+    .sort(
+      (left, right) =>
+        Number(isOneAmWallet(right)) - Number(isOneAmWallet(left)),
+    );
 }
 
 export async function connectWallet(
@@ -108,6 +121,7 @@ export async function connectWallet(
       network,
       address: unshieldedAddress,
       dustBalance: dust.balance,
+      dustCap: dust.cap,
     };
   } catch (error) {
     if (error instanceof AptorError) throw error;
@@ -122,10 +136,13 @@ export async function connectWallet(
 export async function createBrowserProviders(
   connected: ConnectedWallet,
   zkArtifactsUrl: string,
-  privateStateProvider = new EphemeralPrivateStateProvider<
-    typeof APTOR_PRIVATE_STATE_KEY,
-    AptorCredentialPrivateState
-  >(),
+  options: Readonly<{
+    expectedArtifactFingerprint?: string;
+    privateStateProvider?: EphemeralPrivateStateProvider<
+      typeof APTOR_PRIVATE_STATE_KEY,
+      AptorCredentialPrivateState
+    >;
+  }> = {},
 ): Promise<{
   providers: AptorBrowserProviders;
   privateStateProvider: EphemeralPrivateStateProvider<
@@ -133,6 +150,12 @@ export async function createBrowserProviders(
     AptorCredentialPrivateState
   >;
 }> {
+  const privateStateProvider =
+    options.privateStateProvider ??
+    new EphemeralPrivateStateProvider<
+      typeof APTOR_PRIVATE_STATE_KEY,
+      AptorCredentialPrivateState
+    >();
   const { api } = connected;
   const status = await api.getConnectionStatus();
   if (status.status !== "connected") {
@@ -150,8 +173,14 @@ export async function createBrowserProviders(
   const configuration = await api.getConfiguration();
   const shielded = await api.getShieldedAddresses();
   setNetworkId(connected.network);
-  await validateZkArtifactManifest(zkArtifactsUrl);
-  const zkConfigProvider = new AptorFetchZkConfigProvider(zkArtifactsUrl);
+  await validateZkArtifactManifest(
+    zkArtifactsUrl,
+    options.expectedArtifactFingerprint,
+  );
+  const zkConfigProvider = new AptorFetchZkConfigProvider(
+    zkArtifactsUrl,
+    options.expectedArtifactFingerprint,
+  );
 
   try {
     await api.hintUsage([

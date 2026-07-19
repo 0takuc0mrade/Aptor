@@ -43,6 +43,16 @@ export class DeliveryDatabase {
     }
   }
 
+  health(): Readonly<{ schemaVersion: number; writable: true }> {
+    this.connection.exec("BEGIN IMMEDIATE; ROLLBACK;");
+    const row = this.connection
+      .prepare(
+        "SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations",
+      )
+      .get() as { version: number };
+    return { schemaVersion: row.version, writable: true };
+  }
+
   close(): void {
     this.connection.close();
   }

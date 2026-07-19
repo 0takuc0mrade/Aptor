@@ -9,6 +9,7 @@ import {
   type Witnesses,
 } from "@aptor/credential-contract";
 import {
+  deployContract,
   findDeployedContract,
   type FinalizedCallTxData,
   type FoundContract,
@@ -81,12 +82,40 @@ async function findContract(
 
 export class AptorBrowserContract {
   readonly contractAddress: ContractAddress;
+  readonly deploymentTransaction: Readonly<{
+    txId: string;
+    blockHeight: number;
+  }>;
 
   private constructor(
     readonly providers: AptorBrowserProviders,
     readonly deployed: DeployedAptorContract,
   ) {
     this.contractAddress = deployed.deployTxData.public.contractAddress;
+    this.deploymentTransaction = {
+      txId: deployed.deployTxData.public.txId,
+      blockHeight: deployed.deployTxData.public.blockHeight,
+    };
+  }
+
+  static async deploy(
+    providers: AptorBrowserProviders,
+    initialPrivateState: AptorCredentialPrivateState,
+    timeoutMilliseconds = 600_000,
+  ): Promise<AptorBrowserContract> {
+    const deploy = deployContract as unknown as (
+      providers: AptorBrowserProviders,
+      options: Record<string, unknown>,
+    ) => Promise<DeployedAptorContract>;
+    const deployed = await withFinalizationTimeout(
+      deploy(providers, {
+        compiledContract: compiledAptorCredentialContract,
+        privateStateId: APTOR_PRIVATE_STATE_KEY,
+        initialPrivateState,
+      }),
+      timeoutMilliseconds,
+    );
+    return new AptorBrowserContract(providers, deployed);
   }
 
   static async connect(

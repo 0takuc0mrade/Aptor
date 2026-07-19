@@ -11,6 +11,7 @@ import {
   connectWallet,
   createBrowserProviders,
   discoverWallets,
+  isOneAmWallet,
   withFinalizationTimeout,
   type ConnectedWallet,
   type DiscoveredWallet,
@@ -71,8 +72,32 @@ function connectedWallet(api: ConnectedAPI): ConnectedWallet {
     network: "undeployed",
     address: "mn_addr_123456789",
     dustBalance: 10n,
+    dustCap: 100n,
   };
 }
+
+const manifest = {
+  schemaVersion: 1,
+  contractName: "AptorCredential",
+  compilerVersion: "0.31.1",
+  languageVersion: "0.23.0",
+  runtimeVersion: "0.16.0",
+  sources: { "src/aptor.compact": "0".repeat(64) },
+  artifacts: {
+    "keys/createProofRequest.prover": "0".repeat(64),
+    "keys/createProofRequest.verifier": "0".repeat(64),
+    "keys/proveAgainstRequest.prover": "0".repeat(64),
+    "keys/proveAgainstRequest.verifier": "0".repeat(64),
+    "zkir/createProofRequest.bzkir": "0".repeat(64),
+    "zkir/proveAgainstRequest.bzkir": "0".repeat(64),
+  },
+  fingerprint: "1".repeat(64),
+};
+
+const availableArtifactFetch = (async (input: URL | RequestInfo) =>
+  String(input).endsWith("/manifest.json")
+    ? Response.json(manifest)
+    : new Response(null, { status: 200 })) as typeof fetch;
 
 async function withFetch<T>(
   fetchStub: typeof fetch,
@@ -100,6 +125,23 @@ test("wallet discovery filters incompatible connectors", () => {
     ["compatible"],
   );
   assert.deepEqual(discoverWallets(undefined), []);
+});
+
+test("wallet discovery prioritizes 1AM for the Preprod release gate", () => {
+  const generic = discoveredWallet(connectedApi()).api;
+  const oneAm = {
+    ...generic,
+    name: "1AM Wallet",
+    rdns: "xyz.1am.wallet",
+  } as InitialAPI;
+  const wallets = discoverWallets({ generic, oneAm });
+
+  assert.deepEqual(
+    wallets.map(({ id }) => id),
+    ["oneAm", "generic"],
+  );
+  assert.equal(isOneAmWallet(wallets[0]!), true);
+  assert.equal(isOneAmWallet(wallets[1]!), false);
 });
 
 test("wallet connection distinguishes rejection and wrong network", async () => {
@@ -130,19 +172,16 @@ test("wallet connection distinguishes rejection and wrong network", async () => 
 });
 
 test("browser provider assembly succeeds with an official proving API", async () => {
-  await withFetch(
-    (async () => new Response(null, { status: 200 })) as typeof fetch,
-    async () => {
-      const result = await createBrowserProviders(
-        connectedWallet(connectedApi()),
-        "https://aptor.invalid/zk",
-      );
-      assert.ok(result.providers.publicDataProvider);
-      assert.ok(result.providers.proofProvider);
-      assert.ok(result.providers.walletProvider);
-      await result.privateStateProvider.dispose();
-    },
-  );
+  await withFetch(availableArtifactFetch, async () => {
+    const result = await createBrowserProviders(
+      connectedWallet(connectedApi()),
+      "https://aptor.invalid/zk",
+    );
+    assert.ok(result.providers.publicDataProvider);
+    assert.ok(result.providers.proofProvider);
+    assert.ok(result.providers.walletProvider);
+    await result.privateStateProvider.dispose();
+  });
 });
 
 test("browser provider assembly reports missing artifacts and proving failures", async () => {
@@ -160,26 +199,22 @@ test("browser provider assembly reports missing artifacts and proving failures",
     },
   );
 
-  await withFetch(
-    (async () => new Response(null, { status: 200 })) as typeof fetch,
-    async () => {
-      await assert.rejects(
-        createBrowserProviders(
-          connectedWallet(
-            connectedApi({
-              getProvingProvider: async () => {
-                throw new Error("Prover unavailable");
-              },
-            }),
-          ),
-          "https://aptor.invalid/zk",
+  await withFetch(availableArtifactFetch, async () => {
+    await assert.rejects(
+      createBrowserProviders(
+        connectedWallet(
+          connectedApi({
+            getProvingProvider: async () => {
+              throw new Error("Prover unavailable");
+            },
+          }),
         ),
-        (error: unknown) =>
-          error instanceof AptorError &&
-          error.code === "PROOF_GENERATION_FAILED",
-      );
-    },
-  );
+        "https://aptor.invalid/zk",
+      ),
+      (error: unknown) =>
+        error instanceof AptorError && error.code === "PROOF_GENERATION_FAILED",
+    );
+  });
 });
 
 test("transaction finalization has a retry-safe timeout", async () => {

@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAptorWallet } from "@/hooks/use-aptor-wallet";
 import {
   APTOR_CONTRACT_ADDRESS,
+  APTOR_ARTIFACT_FINGERPRINT,
   APTOR_INDEXER_URL,
   APTOR_INDEXER_WS_URL,
   APTOR_NETWORK,
@@ -298,6 +299,7 @@ export function ProfessionalWorkspace() {
       const assembly = await createBrowserProviders(
         connected,
         APTOR_ZK_ARTIFACTS_URL,
+        { expectedArtifactFingerprint: APTOR_ARTIFACT_FINGERPRINT },
       );
       provider = assembly.privateStateProvider;
       transientProvider.current = provider;
