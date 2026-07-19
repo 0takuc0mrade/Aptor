@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.build.json && cp -R generated/aptor/. dist/generated/aptor",
+    "build": "tsc --project tsconfig.build.json && mkdir -p dist/generated/aptor && cp -R generated/aptor/. dist/generated/aptor",
     "compact": "compact compile +0.31.1 src/aptor.compact generated/aptor",
     "compact:check": "compact format --check src/aptor.compact src/schnorr.compact",
     "compact:fast": "compact compile +0.31.1 --skip-zk src/aptor.compact generated/aptor",
