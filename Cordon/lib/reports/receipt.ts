@@ -1,0 +1,132 @@
+import type { CombinedReport, PublicExecutionPlan, QuarantineRunRecord, RuntimeEvent } from "../quarantine/types";
+import type { AttackPath, Finding, ScanResult } from "../scanner/types";
+import { combinedDecision, staticDecision } from "./guidance";
+
+export const CORDON_VERSION = "0.1.0";
+
+function safeText(value: string | undefined, limit = 2_000): string | undefined {
+  if (!value) return undefined;
+  return value
+    .replace(/\/tmp\/cordon-[^\s/]+(?:\/[^\s]*)?/g, "[worker-managed path]")
+    .replace(/CORDON_FAKE_CANARY_[A-Z0-9_]+_INVALID/gi, "[seeded canary]")
+    .replace(/\b[0-9a-f]{64}\b/gi, "[redacted identifier]")
+    .slice(0, limit);
+}
+
+function receiptFinding(finding: Finding) {
+  return {
+    rule: finding.ruleId,
+    title: finding.title,
+    description: finding.description,
+    severity: finding.severity,
+    category: finding.category,
+    file: safeText(finding.filePath, 1_000),
+    line: finding.startLine,
+    evidence: safeText(finding.evidence),
+    outcome: finding.runtime?.outcome,
+    destination: safeText(finding.runtime?.destination, 1_000),
+    recommendation: finding.recommendation,
+  };
+}
+
+function receiptPath(path: AttackPath) {
+  return {
+    title: path.title,
+    description: path.description,
+    severity: path.severity,
+    steps: path.steps,
+    evidence: path.nodes?.map((node) => ({
+      label: node.label,
+      kind: node.evidenceKind,
+      file: safeText(node.filePath, 1_000),
+      line: node.line,
+      policyDecision: node.policyDecision,
+    })),
+  };
+}
+
+function receiptEvent(event: RuntimeEvent) {
+  return {
+    timestamp: event.timestamp,
+    type: event.type,
+    command: safeText(event.command, 1_000),
+    file: safeText(event.filePath, 1_000),
+    destination: safeText(event.destination, 1_000),
+    outcome: event.outcome,
+    evidence: safeText(event.evidence),
+  };
+}
+
+function receiptPlan(plan?: PublicExecutionPlan | null) {
+  if (!plan) return null;
+  return {
+    operation: plan.mode,
+    packageManager: plan.packageManager,
+    command: plan.command,
+    selectedScript: plan.selectedScript,
+    lifecycleScripts: plan.lifecycleScripts,
+    timeoutMs: plan.timeoutMs,
+  };
+}
+
+export function buildReportReceipt(input: { scan: ScanResult; plan?: PublicExecutionPlan | null; run?: QuarantineRunRecord | null; report?: CombinedReport | null }) {
+  const decision = input.report ? combinedDecision(input.scan, input.report) : staticDecision(input.scan);
+  const plan = input.report?.executionPlan ?? input.plan;
+  const runtimeEvents = input.report?.runtimeEvents ?? input.run?.result?.events ?? [];
+  return {
+    schemaVersion: 1,
+    cordonVersion: CORDON_VERSION,
+    repository: {
+      url: input.scan.repository.url,
+      owner: input.scan.repository.owner,
+      name: input.scan.repository.name,
+      commit: input.scan.repository.commitHash,
+    },
+    timestamps: {
+      scanStarted: input.scan.startedAt,
+      scanCompleted: input.scan.completedAt,
+      runtimeStarted: input.run?.startedAt,
+      runtimeCompleted: input.run?.completedAt,
+    },
+    finalVerdict: decision.verdict,
+    summary: decision.summary,
+    recommendedAction: decision.action,
+    staticFindings: input.scan.findings.map(receiptFinding),
+    executionPlan: receiptPlan(plan),
+    runtimePolicy: plan ? {
+      network: plan.networkPolicy,
+      allowedDomains: plan.allowedDomains,
+      memoryLimitMb: plan.memoryLimitMb,
+      cpuLimit: plan.cpuLimit,
+      processLimit: plan.processLimit,
+      outputLimitBytes: plan.outputLimitBytes,
+      seededCanaryKinds: plan.canaries.map((canary) => canary.kind),
+    } : null,
+    runtimeFindings: (input.report?.runtimeFindings ?? input.run?.result?.findings ?? []).map(receiptFinding),
+    runtimeTimeline: runtimeEvents.map(receiptEvent),
+    attackPaths: (input.report?.attackPaths ?? input.scan.attackPaths).map(receiptPath),
+    limitations: input.run?.result?.limitations ?? [
+      "Static analysis covers the supported files and rules; it does not prove author intent.",
+      "A low-risk result is not proof that a repository is safe under every execution path or environment.",
+    ],
+  };
+}
+
+export function buildCopyableSummary(input: Parameters<typeof buildReportReceipt>[0]): string {
+  const receipt = buildReportReceipt(input);
+  const topFindings = [...receipt.runtimeFindings, ...receipt.staticFindings].slice(0, 3);
+  const lines = [
+    `Cordon inspection: ${receipt.repository.owner}/${receipt.repository.name}`,
+    `Commit: ${receipt.repository.commit}`,
+    `Verdict: ${String(receipt.finalVerdict).replaceAll("-", " ")}`,
+    "",
+    receipt.summary,
+    "",
+    `Recommended action: ${receipt.recommendedAction}`,
+  ];
+  if (topFindings.length) {
+    lines.push("", "Key evidence:", ...topFindings.map((finding) => `- ${finding.severity}: ${finding.title}${finding.file ? ` (${finding.file}${finding.line ? `:${finding.line}` : ""})` : ""}`));
+  }
+  lines.push("", `Generated by Cordon ${receipt.cordonVersion}. A low-risk result is not a safety guarantee.`);
+  return lines.join("\n");
+}

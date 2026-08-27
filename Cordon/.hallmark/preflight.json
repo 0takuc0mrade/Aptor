@@ -1,0 +1,9 @@
+{
+  "date": "2026-07-19",
+  "target": "Cordon",
+  "fontStack": "IBM Plex Sans Variable + JetBrains Mono Variable, inherited from Aptor",
+  "palette": "OKLCH tokens, Aptor-derived midnight with Cordon cobalt and semantic risk colors",
+  "motion": "motion-cut; state feedback only",
+  "spacing": "4-point named scale",
+  "framework": "Next.js 16 App Router with Tailwind CSS 4"
+}

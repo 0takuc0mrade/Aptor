@@ -4,6 +4,7 @@ import type { AptorRole } from "@aptor/shared";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { APTOR_CHAIN_MODE } from "@/lib/hsk-config";
 import { useAptorAccount } from "./account-provider";
 
 const roles: ReadonlyArray<{
@@ -105,8 +106,11 @@ export function AppShell({ children }: AppShellProps) {
 
       <footer className="footer">
         <p>
-          Aptor 0.1 · Encrypted local vaults · Official Midnight wallet path ·
-          No fabricated credentials or proof results
+          Aptor 0.1 · Encrypted local vaults ·{" "}
+          {APTOR_CHAIN_MODE === "hsk"
+            ? "HSK wallet path"
+            : "Official Midnight wallet path"}{" "}
+          · No fabricated credentials or proof results
         </p>
         <p>Prove the work. Protect the details.</p>
       </footer>

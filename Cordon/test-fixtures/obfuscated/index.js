@@ -1,0 +1,2 @@
+const payload = "Y29uc29sZS5sb2coJ2RvIG5vdCBydW4gdGhpcyBmaXh0dXJlJyk7Y29uc29sZS5sb2coJ2RvIG5vdCBydW4gdGhpcyBmaXh0dXJlJyk7Y29uc29sZS5sb2coJ2RvIG5vdCBydW4gdGhpcyBmaXh0dXJlJyk7Y29uc29sZS5sb2coJ2RvIG5vdCBydW4gdGhpcyBmaXh0dXJlJyk7";
+eval(Buffer.from(payload, "base64").toString("utf8"));

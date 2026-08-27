@@ -1,0 +1,6 @@
+{
+  "name": "cordon-runtime-legitimate-child",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "inspect": "node inspect.js" }
+}

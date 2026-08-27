@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-19T00:00:00.000Z",
+  "title": "Design System: Cordon",
+  "extensions": {
+    "colorMeta": {
+      "midnight": { "role": "neutral", "displayName": "Midnight Desk", "canonical": "oklch(0.132 0.011 265)" },
+      "inspection-cobalt": { "role": "primary", "displayName": "Inspection Cobalt", "canonical": "oklch(0.684 0.181 252)" },
+      "warning-amber": { "role": "warning", "displayName": "Review Amber", "canonical": "oklch(0.790 0.148 78)" },
+      "critical-red": { "role": "error", "displayName": "Critical Red", "canonical": "oklch(0.670 0.205 24)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Product display", "purpose": "Page and panel headings." },
+      "mono": { "displayName": "Evidence mono", "purpose": "Paths, hashes, code, URLs, and numerical data." }
+    },
+    "motion": {
+      "micro": "120ms cubic-bezier(0.16, 1, 0.3, 1)",
+      "short": "220ms cubic-bezier(0.16, 1, 0.3, 1)",
+      "reduced": "Spatial motion removed; transitions capped at 150ms."
+    },
+    "breakpoints": ["40rem", "60rem", "90rem"],
+    "narrative": {
+      "northStar": "The Evidence Desk",
+      "rules": ["Real repository output is the visual proof.", "Severity is never color-only.", "Cobalt marks interaction, not decoration."]
+    }
+  }
+}

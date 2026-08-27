@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Repository {
+  id            String   @id @default(cuid())
+  owner         String
+  name          String
+  url           String   @unique
+  defaultBranch String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  scans         Scan[]
+
+  @@index([owner, name])
+}
+
+model Scan {
+  id             String      @id
+  repositoryId   String
+  repository     Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  commitHash      String
+  status          String
+  startedAt       DateTime
+  completedAt     DateTime?
+  filesScanned    Int
+  rulesExecuted   Json
+  severityTotals  Json
+  overallScore    Int
+  verdict         String
+  attackPaths     Json
+  result          Json
+  findings        Finding[]
+  quarantinePlans QuarantinePlan[]
+  quarantineRuns  QuarantineRun[]
+  createdAt       DateTime    @default(now())
+
+  @@index([repositoryId, startedAt])
+  @@index([verdict, startedAt])
+}
+
+model Inspection {
+  id             String   @id
+  submissionKey  String   @unique
+  repositoryUrl  String
+  owner          String
+  name           String
+  source         String
+  demoKey        String?
+  status         String
+  currentStage   String
+  state          Json
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([source, updatedAt])
+}
+
+model QuarantinePlan {
+  id               String          @id
+  scanId           String
+  scan             Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  mode             String
+  runtime          String
+  packageManager   String
+  command          Json
+  timeoutMs        Int
+  memoryLimitMb    Int
+  cpuLimit         Float
+  processLimit     Int
+  outputLimitBytes Int
+  networkPolicy    String
+  allowedDomains   Json
+  lifecycleScripts Json
+  canaries         Json
+  plan             Json
+  createdAt        DateTime        @default(now())
+  runs             QuarantineRun[]
+
+  @@index([scanId, createdAt])
+}
+
+model QuarantineRun {
+  id                String           @id
+  scanId            String
+  scan              Scan             @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  planId            String
+  plan              QuarantinePlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  status            String
+  stage             String?
+  progress          Json?
+  attempt           Int              @default(1)
+  startedAt         DateTime?
+  completedAt       DateTime?
+  error              String?
+  terminationReason String?
+  networkPolicy     String?
+  containerMetadata Json?
+  result             Json?
+  combinedReport     Json?
+  explanation        Json?
+  runtimeEvents      RuntimeEvent[]
+  runtimeFindings    RuntimeFinding[]
+  attackPathNodes    RuntimeAttackPathNode[]
+  attackPathEdges    RuntimeAttackPathEdge[]
+  createdAt          DateTime         @default(now())
+
+  @@index([scanId, createdAt])
+  @@index([status, createdAt])
+  @@unique([planId, attempt])
+}
+
+model RuntimeEvent {
+  id              String        @id @default(cuid())
+  externalId      String
+  runId           String
+  run             QuarantineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  timestamp       DateTime
+  type            String
+  processId       Int?
+  parentProcessId Int?
+  command         String?
+  filePath        String?
+  destination     String?
+  canaryId        String?
+  outcome         String?
+  evidence        String
+
+  @@unique([runId, externalId])
+  @@index([runId, timestamp])
+  @@index([type])
+}
+
+model RuntimeFinding {
+  id              String        @id @default(cuid())
+  externalId      String
+  runId           String
+  run             QuarantineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  ruleId          String
+  title           String
+  description     String
+  severity        String
+  category        String
+  filePath        String
+  evidence        String?
+  recommendation  String
+  runtimeEvidence Json?
+
+  @@unique([runId, externalId])
+  @@index([runId, severity])
+}
+
+model RuntimeAttackPathNode {
+  id             String        @id @default(cuid())
+  externalId     String
+  pathId         String
+  runId          String
+  run            QuarantineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  label          String
+  evidenceKind   String
+  findingId      String?
+  runtimeEventId String?
+  filePath       String?
+  line           Int?
+  processId      Int?
+  policyDecision String?
+
+  @@unique([runId, externalId])
+  @@index([runId, pathId])
+}
+
+model RuntimeAttackPathEdge {
+  id               String        @id @default(cuid())
+  externalId       String
+  pathId           String
+  runId             String
+  run               QuarantineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceExternalId String
+  targetExternalId String
+  evidenceKind     String
+  label            String
+
+  @@unique([runId, externalId])
+  @@index([runId, pathId])
+}
+
+model Finding {
+  id             String @id @default(cuid())
+  externalId     String
+  scanId         String
+  scan           Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  ruleId         String
+  title          String
+  description    String
+  severity       String
+  category       String
+  filePath       String
+  startLine      Int?
+  endLine        Int?
+  evidence       String?
+  recommendation String
+  createdAt      DateTime @default(now())
+
+  @@unique([scanId, externalId])
+  @@index([scanId, severity])
+  @@index([ruleId])
+}

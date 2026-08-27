@@ -1,0 +1,7 @@
+{
+  "name": "env-exfiltration-fixture",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  }
+}

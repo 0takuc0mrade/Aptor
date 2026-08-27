@@ -21,6 +21,28 @@ const DECIMAL_BIGINT = z.string().regex(/^(0|[1-9][0-9]*)$/u);
 const JUBJUB_POINT = z
   .string()
   .regex(/^aptor-jubjub-v1:[0-9a-f]{64}:[0-9a-f]{64}$/u);
+const EVM_ADDRESS = z.string().regex(/^0x[0-9a-fA-F]{40}$/u);
+const EVM_TX_HASH = z.string().regex(/^0x[0-9a-fA-F]{64}$/u);
+
+export const hskCredentialMetadataSchema = z
+  .object({
+    chainId: z.number().int().positive(),
+    credentialRegistryAddress: EVM_ADDRESS,
+    issuerAddress: EVM_ADDRESS,
+    credentialCommitment: DECIMAL_BIGINT,
+    credentialSecret: DECIMAL_BIGINT,
+    registrationTransactionId: EVM_TX_HASH,
+  })
+  .strict();
+
+export const hskRequestMetadataSchema = z
+  .object({
+    chainId: z.number().int().positive(),
+    proofRequestsAddress: EVM_ADDRESS,
+    verifierAddress: EVM_ADDRESS,
+    requiredSkillHash: DECIMAL_BIGINT,
+  })
+  .strict();
 
 export { holderProfileSchema, issuerProfileSchema };
 export type { AptorHolderProfileV1, AptorIssuerProfileV1, AptorNetwork };
@@ -62,6 +84,7 @@ export const signedCredentialSchema = z
       .min(1)
       .max(32),
     issuedAt: ISO_DATE,
+    hsk: hskCredentialMetadataSchema.optional(),
   })
   .strict();
 
@@ -140,6 +163,7 @@ export const requestPackageSchema = z
       .max(32),
     registrationTransactionId: z.string().min(8).max(256),
     createdAt: ISO_DATE,
+    hsk: hskRequestMetadataSchema.optional(),
   })
   .strict();
 
@@ -169,6 +193,9 @@ export const issuerVaultSchema = z
             credentialId: HEX_32,
             holderProfileId: aptorProfileIdSchema,
             issuedAt: ISO_DATE,
+            hsk: hskCredentialMetadataSchema
+              .omit({ credentialSecret: true })
+              .optional(),
           })
           .strict(),
       )

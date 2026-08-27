@@ -29,7 +29,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-playwright/types/**/*.ts",
-    ".next-playwright/dev/types/**/*.ts"
+    ".next-playwright/dev/types/**/*.ts",
+    ".next-hsk-playwright/types/**/*.ts",
+    ".next-hsk-playwright/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

@@ -3,12 +3,14 @@ import test from "node:test";
 
 import {
   createIssuerVault,
+  createHskRequestDraft,
   createPrivateStateForRequest,
   createProfessionalVault,
   credentialSatisfiesRequest,
   decryptCredentialPackage,
   encryptCredentialPackage,
   finalizeRequestPackage,
+  finalizeRequestDraftPackage,
   issueCredential,
   parseCredentialFile,
   parseHolderFile,
@@ -16,6 +18,7 @@ import {
   parsePortableFile,
   parseRequestFile,
   serializePortableFile,
+  signedCredentialSchema,
   validateCredentialForHolder,
   validateRequestPackage,
   validateSignedCredential,
@@ -150,6 +153,60 @@ test("request packages recompute commitments and matching private paths", () => 
       error instanceof AptorError &&
       error.code === "REQUEST_COMMITMENT_MISMATCH",
   );
+});
+
+test("HSK metadata survives encrypted credential and request package round trips", async () => {
+  const { professional, issuer, credential } = fixture();
+  const registry = "0x1111111111111111111111111111111111111111";
+  const requests = "0x2222222222222222222222222222222222222222";
+  const issuerAddress = "0x3333333333333333333333333333333333333333";
+  const verifierAddress = "0x4444444444444444444444444444444444444444";
+  const transaction = `0x${"ab".repeat(32)}`;
+  const hskCredential = signedCredentialSchema.parse({
+    ...credential,
+    hsk: {
+      chainId: 31_337,
+      credentialRegistryAddress: registry,
+      issuerAddress,
+      credentialCommitment: "123456789",
+      credentialSecret: "987654321",
+      registrationTransactionId: transaction,
+    },
+  });
+  const encrypted = await encryptCredentialPackage(
+    hskCredential,
+    "correct horse battery staple",
+  );
+  const restored = await decryptCredentialPackage(
+    encrypted,
+    "correct horse battery staple",
+  );
+  assert.equal(restored.hsk?.credentialSecret, "987654321");
+
+  const input = {
+    acceptedIssuerProfiles: [issuer.profile],
+    requiredSkill: "TypeScript",
+    minimumDurationMonths: 12,
+    requireProductionDelivery: true,
+    minimumClientRatingHundredths: 450,
+  };
+  const request = finalizeRequestDraftPackage(
+    "hsk-local",
+    requests,
+    input.acceptedIssuerProfiles,
+    createHskRequestDraft(input, "00".repeat(31) + "2a"),
+    transaction,
+    {
+      chainId: 31_337,
+      proofRequestsAddress: requests,
+      verifierAddress,
+      requiredSkillHash: "123456789",
+    },
+  );
+  assert.equal(validateRequestPackage(request).hsk?.chainId, 31_337);
+  assert.equal(credentialSatisfiesRequest(hskCredential, request), true);
+  assert.equal(request.network, "hsk-local");
+  assert.equal(professional.profile.profileId, hskCredential.holderProfileId);
 });
 
 test("request import rejects the wrong network and unsupported issuer", () => {

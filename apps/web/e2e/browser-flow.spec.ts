@@ -59,6 +59,8 @@ async function installOfficialLocalConnector(page: Page): Promise<void> {
           return connector.getShieldedAddresses();
         case "getUnshieldedAddress":
           return connector.getUnshieldedAddress();
+        case "getDustAddress":
+          return connector.getDustAddress();
         case "getDustBalance": {
           const dust = await connector.getDustBalance();
           return {
@@ -132,6 +134,7 @@ async function installOfficialLocalConnector(page: Page): Promise<void> {
         getConfiguration: () => call({ method: "getConfiguration" }),
         getShieldedAddresses: () => call({ method: "getShieldedAddresses" }),
         getUnshieldedAddress: () => call({ method: "getUnshieldedAddress" }),
+        getDustAddress: () => call({ method: "getDustAddress" }),
         async getDustBalance() {
           const dust = asObject(await call({ method: "getDustBalance" }));
           return {

@@ -1,0 +1,6 @@
+{
+  "name": "cordon-runtime-oversized-output",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "verbose": "node output.js" }
+}

@@ -42,6 +42,8 @@ import {
   type IssuerVaultV1,
   type ProfessionalVaultV1,
 } from "./schemas.js";
+import type { z } from "zod";
+import type { hskRequestMetadataSchema } from "./schemas.js";
 
 export type IssueCredentialInput = Readonly<{
   holderProfile: AptorHolderProfileV1;
@@ -290,6 +292,25 @@ export function createRequestDraft(input: CreateRequestInput): {
   };
 }
 
+export function createHskRequestDraft(
+  input: CreateRequestInput,
+  requestId: string,
+): ReturnType<typeof createRequestDraft> {
+  const draft = createRequestDraft(input);
+  const request = {
+    ...draft.request,
+    requestId,
+  };
+  return {
+    request,
+    requestCommitment: bytesToHex(
+      deriveProofRequestCommitment(
+        portableRequestFieldsToContractRequest(request),
+      ),
+    ),
+  };
+}
+
 export function finalizeRequestPackage(
   network: AptorNetwork,
   contractAddress: string,
@@ -312,6 +333,7 @@ export function finalizeRequestDraftPackage(
   acceptedIssuerProfiles: readonly AptorIssuerProfileV1[],
   draft: ReturnType<typeof createRequestDraft>,
   registrationTransactionId: string,
+  hsk?: z.infer<typeof hskRequestMetadataSchema>,
 ): AptorProofRequestPackageV1 {
   return requestPackageSchema.parse({
     format: "aptor-request",
@@ -325,6 +347,7 @@ export function finalizeRequestDraftPackage(
     })),
     registrationTransactionId,
     createdAt: new Date().toISOString(),
+    ...(hsk ? { hsk } : {}),
   });
 }
 

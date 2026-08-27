@@ -17,6 +17,15 @@ const sourceRoot = path.resolve(
   "../../contracts/aptor-credential/generated/aptor",
 );
 const destinationRoot = path.resolve(appRoot, "public/zk/aptor");
+const hskSourceRoot = path.resolve(
+  appRoot,
+  "../../packages/zk-hsk/build/aptor",
+);
+const hskDestinationRoot = path.resolve(appRoot, "public/zk/hsk");
+const hskArtifactFiles = [
+  ["AptorCredential_js/AptorCredential.wasm", "AptorCredential.wasm"],
+  ["aptor_final.zkey", "aptor_final.zkey"],
+];
 const artifactFiles = [
   "keys/createProofRequest.prover",
   "keys/createProofRequest.verifier",
@@ -50,6 +59,17 @@ for (const file of artifactFiles) {
   artifactHashes[file] = sha256(await readFile(source));
 }
 
+for (const [sourceName, destinationName] of hskArtifactFiles) {
+  const source = path.join(hskSourceRoot, sourceName);
+  await access(source);
+  const fileStat = await stat(source);
+  if (!fileStat.isFile() || fileStat.size === 0) {
+    throw new Error(`Invalid Aptor HSK ZK artifact: ${source}`);
+  }
+  await mkdir(hskDestinationRoot, { recursive: true });
+  await copyFile(source, path.join(hskDestinationRoot, destinationName));
+}
+
 const contractRoot = path.resolve(appRoot, "../../contracts/aptor-credential");
 const sourceHashes = {};
 for (const file of sourceFiles) {
@@ -81,5 +101,5 @@ await writeFile(
 );
 
 console.log(
-  `Validated and staged ${artifactFiles.length} Aptor ZK artifacts (${manifest.fingerprint}).`,
+  `Validated and staged ${artifactFiles.length} Midnight and ${hskArtifactFiles.length} HSK ZK artifacts (${manifest.fingerprint}).`,
 );

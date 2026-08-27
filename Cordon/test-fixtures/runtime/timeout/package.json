@@ -1,0 +1,6 @@
+{
+  "name": "cordon-runtime-timeout",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "wait-forever": "node infinite.js" }
+}

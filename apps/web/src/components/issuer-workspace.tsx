@@ -7,18 +7,32 @@ import {
   issueCredential,
   parseHolderFile,
   serializePortableFile,
+  signedCredentialSchema,
   type AptorHolderProfileV1,
 } from "@aptor/browser";
 import type { AptorProfileV1 } from "@aptor/shared";
 import { useEffect, useMemo, useState } from "react";
 
+import { useHskWallet } from "@/hooks/use-hsk-wallet";
 import {
   listInvitations,
   sendEnvelope,
   type AptorInvitationView,
 } from "@/lib/delivery-client";
+import {
+  computeCredentialCommitment,
+  encodeHskSkill,
+  randomHskScalar,
+  registerHskCredential,
+} from "@/lib/hsk-client";
+import {
+  APTOR_CHAIN_MODE,
+  HSK_CHAIN_ID,
+  requireHskContracts,
+} from "@/lib/hsk-config";
 
 import { AccountToolbar, ProfileAccess } from "./profile-access";
+import { HskWalletPanel } from "./hsk-wallet-panel";
 import { useAptorAccount } from "./account-provider";
 import { FileField } from "./file-field";
 import { RoleWorkspace, WorkflowSequence } from "./role-placeholder";
@@ -32,6 +46,8 @@ type CredentialDraft = Readonly<{
 
 export function IssuerWorkspace() {
   const account = useAptorAccount();
+  const hskWallet = useHskWallet();
+  const isHsk = APTOR_CHAIN_MODE === "hsk";
   const [portableHolder, setPortableHolder] =
     useState<AptorHolderProfileV1 | null>(null);
   const [invitations, setInvitations] = useState<AptorInvitationView[]>([]);
@@ -84,6 +100,84 @@ export function IssuerWorkspace() {
       holderProfile: professional.holderProfile,
       ...credentialDraft,
     });
+
+  const issueAndDeliver = async (
+    professional: AptorProfileV1,
+    credentialDraft: CredentialDraft,
+  ) => {
+    let credential = createCredential(professional, credentialDraft);
+    if (isHsk) {
+      if (credentialDraft.skills.length !== 1) {
+        throw new Error("HSK credentials currently support exactly one skill.");
+      }
+      const connected = await hskWallet.connect();
+      const credentialSecret = randomHskScalar();
+      const skillHash = await encodeHskSkill(credentialDraft.skills[0]!);
+      const credentialCommitment = await computeCredentialCommitment({
+        skillHash,
+        experienceMonths: credentialDraft.durationMonths,
+        productionExperience: credentialDraft.deliveredToProduction,
+        ratingHundredths: credentialDraft.clientRatingHundredths,
+        credentialSecret,
+      });
+      const registration = await registerHskCredential(
+        connected,
+        credentialCommitment,
+      );
+      credential = signedCredentialSchema.parse({
+        ...credential,
+        hsk: {
+          chainId: HSK_CHAIN_ID,
+          credentialRegistryAddress: requireHskContracts().credentialRegistry,
+          issuerAddress: connected.address,
+          credentialCommitment: credentialCommitment.toString(),
+          credentialSecret: credentialSecret.toString(),
+          registrationTransactionId: registration.hash,
+        },
+      });
+    }
+    const envelope = await encryptEnvelopePayload(
+      credential,
+      account.value!.profile.profileId,
+      professional.profileId,
+      "work_credential",
+      professional.publicEncryptionKey,
+    );
+    await sendEnvelope(account.value!.privateProfile.accessToken, envelope);
+    await account.save({
+      ...account.value!,
+      issuer: {
+        ...account.value!.issuer,
+        issuanceHistory: [
+          ...account.value!.issuer.issuanceHistory,
+          {
+            credentialId: credential.credential.credentialId,
+            holderProfileId: credential.holderProfileId,
+            issuedAt: credential.issuedAt,
+            ...(credential.hsk
+              ? {
+                  hsk: {
+                    chainId: credential.hsk.chainId,
+                    credentialRegistryAddress:
+                      credential.hsk.credentialRegistryAddress,
+                    issuerAddress: credential.hsk.issuerAddress,
+                    credentialCommitment: credential.hsk.credentialCommitment,
+                    registrationTransactionId:
+                      credential.hsk.registrationTransactionId,
+                  },
+                }
+              : {}),
+          },
+        ],
+      },
+    });
+    setDraft(null);
+    setSuccess(
+      isHsk
+        ? "Credential commitment registered on HSK and the private credential delivered as ciphertext."
+        : "Credential encrypted for recipient. Delivered to Professional inbox.",
+    );
+  };
 
   return (
     <RoleWorkspace
@@ -210,6 +304,12 @@ export function IssuerWorkspace() {
                   setError("Enter at least one skill.");
                   return;
                 }
+                if (isHsk && skills.length !== 1) {
+                  setError(
+                    "HSK credentials currently support exactly one skill.",
+                  );
+                  return;
+                }
                 setDraft({
                   skills,
                   durationMonths: Number(data.get("durationMonths")),
@@ -270,6 +370,8 @@ export function IssuerWorkspace() {
               </button>
             </form>
 
+            {isHsk ? <HskWalletPanel wallet={hskWallet} /> : null}
+
             {draft !== null &&
             (recipient !== null || portableHolder !== null) ? (
               <div className="review-sheet" aria-live="polite">
@@ -310,51 +412,23 @@ export function IssuerWorkspace() {
                     onClick={() => {
                       setError("");
                       setSuccess("");
-                      void (async () => {
-                        const credential = createCredential(recipient, draft);
-                        const envelope = await encryptEnvelopePayload(
-                          credential,
-                          account.value!.profile.profileId,
-                          recipient.profileId,
-                          "work_credential",
-                          recipient.publicEncryptionKey,
-                        );
-                        await sendEnvelope(
-                          account.value!.privateProfile.accessToken,
-                          envelope,
-                        );
-                        await account.save({
-                          ...account.value!,
-                          issuer: {
-                            ...account.value!.issuer,
-                            issuanceHistory: [
-                              ...account.value!.issuer.issuanceHistory,
-                              {
-                                credentialId:
-                                  credential.credential.credentialId,
-                                holderProfileId: credential.holderProfileId,
-                                issuedAt: credential.issuedAt,
-                              },
-                            ],
-                          },
-                        });
-                        setDraft(null);
-                        setSuccess(
-                          "Credential encrypted for recipient. Delivered to Professional inbox.",
-                        );
-                      })().catch((deliveryError: unknown) => {
-                        setError(
-                          deliveryError instanceof Error
-                            ? deliveryError.message
-                            : "The credential could not be delivered.",
-                        );
-                      });
+                      void issueAndDeliver(recipient, draft).catch(
+                        (deliveryError: unknown) => {
+                          setError(
+                            deliveryError instanceof Error
+                              ? deliveryError.message
+                              : "The credential could not be delivered.",
+                          );
+                        },
+                      );
                     }}
                     type="button"
                   >
                     {account.busy
                       ? "Encrypting and delivering…"
-                      : "Sign and deliver credential"}
+                      : isHsk
+                        ? "Register and deliver credential"
+                        : "Sign and deliver credential"}
                   </button>
                 ) : (
                   <p className="privacy-note">

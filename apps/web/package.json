@@ -12,6 +12,9 @@
     "start": "next start",
     "start:production": "next start --hostname 0.0.0.0",
     "start:e2e": "next start --hostname 127.0.0.1 --port 3100",
+    "start:e2e:hsk": "next start --hostname 127.0.0.1 --port 3200",
+    "pretest:e2e:hsk": "node e2e/build-hsk-server.mjs",
+    "test:e2e:hsk": "playwright test --config playwright.hsk.config.ts",
     "pretest:e2e:local": "node e2e/build-server.mjs",
     "test:e2e:local": "playwright test --config playwright.local.config.ts",
     "lint": "eslint .",
@@ -23,10 +26,13 @@
     "@aptor/shared": "0.1.0",
     "@fontsource-variable/ibm-plex-sans": "5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "circomlibjs": "^0.1.7",
     "hls.js": "^1.6.16",
     "next": "16.2.10",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "snarkjs": "^0.7.5",
+    "viem": "^2.56.0"
   },
   "devDependencies": {
     "@aptor/midnight": "0.1.0",

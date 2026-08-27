@@ -1,0 +1,7 @@
+{
+  "name": "legitimate-child-process-fixture",
+  "private": true,
+  "scripts": {
+    "format:check": "node check-format.js"
+  }
+}

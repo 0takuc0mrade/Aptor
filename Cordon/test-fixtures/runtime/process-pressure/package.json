@@ -1,0 +1,6 @@
+{
+  "name": "cordon-runtime-process-pressure",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "pressure": "node spawn-many.js" }
+}

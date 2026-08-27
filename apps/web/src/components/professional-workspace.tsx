@@ -27,6 +27,19 @@ import type { AptorEncryptedEnvelopeV1 } from "@aptor/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAptorWallet } from "@/hooks/use-aptor-wallet";
+import { useHskWallet } from "@/hooks/use-hsk-wallet";
+import {
+  assertHskRequestMatchesChain,
+  assertHskCredentialMatchesChain,
+  fulfillHskRequest,
+  generateHskProof,
+} from "@/lib/hsk-client";
+import {
+  APTOR_CHAIN_MODE,
+  HSK_CHAIN,
+  HSK_NETWORK,
+  requireHskContracts,
+} from "@/lib/hsk-config";
 import {
   APTOR_CONTRACT_ADDRESS,
   APTOR_ARTIFACT_FINGERPRINT,
@@ -51,6 +64,8 @@ import { FileField } from "./file-field";
 import { AccountToolbar, ProfileAccess } from "./profile-access";
 import { RoleWorkspace } from "./role-placeholder";
 import { WalletPanel } from "./wallet-panel";
+import { HskWalletPanel } from "./hsk-wallet-panel";
+import { createPublicClient, http } from "viem";
 
 type ProofStage =
   | "idle"
@@ -73,9 +88,18 @@ const proofStageCopy: Record<ProofStage, string> = {
   failure: "The proof flow stopped safely. Private witness state was cleared.",
 };
 
+const hskProofStageCopy: Record<ProofStage, string> = {
+  ...proofStageCopy,
+  "waiting-wallet": "Waiting for a connected HSK wallet…",
+  proving: "Generating the request-bound Groth16 proof in this browser…",
+  submitting: "Submitting the proof to HSK Chain…",
+};
+
 export function ProfessionalWorkspace() {
   const account = useAptorAccount();
   const wallet = useAptorWallet();
+  const hskWallet = useHskWallet();
+  const isHsk = APTOR_CHAIN_MODE === "hsk";
   const encryptedCredential = useRef<AptorEncryptedCredentialPackageV1 | null>(
     null,
   );
@@ -168,6 +192,13 @@ export function ProfessionalWorkspace() {
         payload,
         account.value.professional,
       );
+      if (isHsk) {
+        const publicClient = createPublicClient({
+          chain: HSK_CHAIN,
+          transport: http(),
+        });
+        await assertHskCredentialMatchesChain(publicClient, credential);
+      }
       await account.save({
         ...account.value,
         professional: {
@@ -186,26 +217,45 @@ export function ProfessionalWorkspace() {
         "Envelope integrity, Issuer signature, and holder binding verified. Credential saved in the encrypted vault.",
       );
     } else {
-      const contractAddress = requireContractAddress();
+      const contractAddress = isHsk
+        ? requireHskContracts().proofRequests
+        : requireContractAddress();
       const request = validateRequestPackage(payload, {
-        network: APTOR_NETWORK,
+        network: isHsk ? HSK_NETWORK : APTOR_NETWORK,
         contractAddress,
       });
-      const publicState = await queryPublicRequest(
-        {
-          network: APTOR_NETWORK,
-          indexerUrl: APTOR_INDEXER_URL,
-          indexerWsUrl: APTOR_INDEXER_WS_URL,
-          contractAddress,
-        },
-        request.request.requestId,
-        request.requestCommitment,
-      );
-      if (!publicState.registered || !publicState.commitmentMatches) {
-        throw new AptorError(
-          "REQUEST_NOT_REGISTERED",
-          "This delivered request does not match registered Midnight state.",
+      if (isHsk) {
+        const publicClient = createPublicClient({
+          chain: HSK_CHAIN,
+          transport: http(),
+        });
+        const publicState = await assertHskRequestMatchesChain(
+          publicClient,
+          request,
         );
+        if (publicState.fulfilled) {
+          throw new AptorError(
+            "REQUEST_ALREADY_FULFILLED",
+            "This HSK request is already fulfilled.",
+          );
+        }
+      } else {
+        const publicState = await queryPublicRequest(
+          {
+            network: APTOR_NETWORK,
+            indexerUrl: APTOR_INDEXER_URL,
+            indexerWsUrl: APTOR_INDEXER_WS_URL,
+            contractAddress,
+          },
+          request.request.requestId,
+          request.requestCommitment,
+        );
+        if (!publicState.registered || !publicState.commitmentMatches) {
+          throw new AptorError(
+            "REQUEST_NOT_REGISTERED",
+            "This delivered request does not match registered Midnight state.",
+          );
+        }
       }
       await account.save({
         ...account.value,
@@ -258,6 +308,62 @@ export function ProfessionalWorkspace() {
     setStage("validating");
     let provider: typeof transientProvider.current = null;
     try {
+      if (isHsk) {
+        const contracts = requireHskContracts();
+        const request = validateRequestPackage(selectedRequest, {
+          network: HSK_NETWORK,
+          contractAddress: contracts.proofRequests,
+        });
+        if (!credentialSatisfiesRequest(selectedCredential, request)) {
+          throw new AptorError(
+            "CREDENTIAL_CANNOT_SATISFY_REQUEST",
+            "The selected credential does not satisfy this request.",
+          );
+        }
+        setStage("waiting-wallet");
+        const connected = await hskWallet.connect();
+        const chainState = await assertHskRequestMatchesChain(
+          connected.publicClient,
+          request,
+        );
+        if (chainState.fulfilled) {
+          throw new AptorError(
+            "REQUEST_ALREADY_FULFILLED",
+            "This request is already fulfilled. Aptor will not replay it.",
+          );
+        }
+        setStage("proving");
+        const proof = await generateHskProof(selectedCredential, request);
+        setStage("submitting");
+        const result = await fulfillHskRequest(connected, request, proof);
+        setStage("finalizing");
+        const fulfilled = await assertHskRequestMatchesChain(
+          connected.publicClient,
+          request,
+        );
+        if (!fulfilled.fulfilled) {
+          throw new Error(
+            "HSK finalized the transaction without fulfilling the request.",
+          );
+        }
+        await updateRequestTracking(
+          account.value.privateProfile.accessToken,
+          request.request.requestId,
+          {
+            status: "proof_submitted",
+            fulfillmentTransactionId: result.hash,
+          },
+        );
+        setReceipt({
+          txId: result.hash,
+          blockHeight: Number(result.receipt.blockNumber),
+        });
+        setStage("success");
+        setSuccess(
+          "Groth16 proof finalized on HSK. The Verifier can read the fulfilled receipt without receiving the credential.",
+        );
+        return;
+      }
       const contractAddress = requireContractAddress();
       const request = validateRequestPackage(selectedRequest, {
         network: APTOR_NETWORK,
@@ -340,7 +446,11 @@ export function ProfessionalWorkspace() {
 
   return (
     <RoleWorkspace
-      description="Invite previous clients, receive encrypted credentials and proof requests, then choose a compatible credential and generate the real Midnight proof."
+      description={
+        isHsk
+          ? "Invite previous clients, receive encrypted credentials and proof requests, then choose a compatible credential and generate the real HashKey proof."
+          : "Invite previous clients, receive encrypted credentials and proof requests, then choose a compatible credential and generate the real Midnight proof."
+      }
       headline="Turn private work into proof."
       privacyDetail="Inbox ciphertext decrypts only after profile unlock. Credential matching happens inside the encrypted local vault, and one selected credential enters ephemeral proof state."
       privacyStages={[
@@ -526,7 +636,7 @@ export function ProfessionalWorkspace() {
                               proof_request_received:
                                 "New proof request received",
                               request_fulfilled:
-                                "Request fulfilled on Midnight",
+                                isHsk ? "Request fulfilled on HashKey Chain" : "Request fulfilled on Midnight",
                             }[notification.type]
                           }
                         </strong>
@@ -651,7 +761,11 @@ export function ProfessionalWorkspace() {
             )}
           </section>
 
-          <WalletPanel wallet={wallet} />
+          {isHsk ? (
+            <HskWalletPanel wallet={hskWallet} />
+          ) : (
+            <WalletPanel wallet={wallet} />
+          )}
 
           <section className="proof-readiness" aria-labelledby="proof-title">
             <header className="section-heading section-heading--compact">
@@ -738,7 +852,7 @@ export function ProfessionalWorkspace() {
               aria-live="polite"
             >
               <span>{stage.replaceAll("-", " ")}</span>
-              <p>{proofStageCopy[stage]}</p>
+              <p>{(isHsk ? hskProofStageCopy : proofStageCopy)[stage]}</p>
             </div>
             <button
               className="action-button"
@@ -770,7 +884,7 @@ export function ProfessionalWorkspace() {
                 </div>
                 <div>
                   <dt>Network</dt>
-                  <dd>{APTOR_NETWORK}</dd>
+                  <dd>{isHsk ? HSK_NETWORK : APTOR_NETWORK}</dd>
                 </div>
               </dl>
             ) : null}
@@ -876,8 +990,10 @@ export function ProfessionalWorkspace() {
                       const request = validateRequestPackage(
                         parseRequestFile(text),
                         {
-                          network: APTOR_NETWORK,
-                          contractAddress: requireContractAddress(),
+                          network: isHsk ? HSK_NETWORK : APTOR_NETWORK,
+                          contractAddress: isHsk
+                            ? requireHskContracts().proofRequests
+                            : requireContractAddress(),
                         },
                       );
                       await account.save({
@@ -924,7 +1040,7 @@ export function ProfessionalWorkspace() {
               {success}
             </p>
           ) : null}
-          {!APTOR_CONTRACT_ADDRESS ? (
+          {!isHsk && !APTOR_CONTRACT_ADDRESS ? (
             <p className="workspace-message form-message form-message--warning">
               Proof actions are disabled until
               NEXT_PUBLIC_APTOR_CONTRACT_ADDRESS is configured.

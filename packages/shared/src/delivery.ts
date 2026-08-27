@@ -12,6 +12,9 @@ export const aptorNetworkSchema = z.enum([
   "preview",
   "preprod",
   "undeployed",
+  "hsk-local",
+  "hsk-testnet",
+  "hsk-mainnet",
 ]);
 
 const jubjubPointSchema = z

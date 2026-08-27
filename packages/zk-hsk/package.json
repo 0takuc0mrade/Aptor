@@ -1,0 +1,20 @@
+{
+  "name": "@aptor/zk-hsk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:canary": "bash scripts/build-canary.sh",
+    "build:aptor": "bash scripts/build-aptor.sh",
+    "proof": "node scripts/generate-proof.mjs",
+    "proof:aptor": "node scripts/generate-aptor-proof.mjs",
+    "fixtures:foundry": "node scripts/export-foundry-fixtures.mjs",
+    "skill": "node scripts/encode-skill.mjs",
+    "test": "bash scripts/test-canary.sh",
+    "test:aptor": "bash scripts/test-aptor.sh"
+  },
+  "devDependencies": {
+    "circomlib": "2.0.5",
+    "snarkjs": "0.7.5"
+  }
+}

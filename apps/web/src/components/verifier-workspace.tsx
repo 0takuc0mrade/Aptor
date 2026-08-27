@@ -3,6 +3,7 @@
 import {
   AptorBrowserContract,
   createBrowserProviders,
+  createHskRequestDraft,
   createRequestDraft,
   downloadPortableFile,
   encryptEnvelopePayload,
@@ -17,6 +18,21 @@ import type { AptorProfileV1, AptorRequestTrackingV1 } from "@aptor/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAptorWallet } from "@/hooks/use-aptor-wallet";
+import { useHskWallet } from "@/hooks/use-hsk-wallet";
+import {
+  createHskProofRequest,
+  encodeHskSkill,
+  hskRequestIdHex,
+  randomHskScalar,
+  readHskRequest,
+} from "@/lib/hsk-client";
+import {
+  APTOR_CHAIN_MODE,
+  HSK_CHAIN,
+  HSK_CHAIN_ID,
+  HSK_NETWORK,
+  requireHskContracts,
+} from "@/lib/hsk-config";
 import {
   APTOR_CONTRACT_ADDRESS,
   APTOR_ARTIFACT_FINGERPRINT,
@@ -39,6 +55,8 @@ import { FileField } from "./file-field";
 import { AccountToolbar, ProfileAccess } from "./profile-access";
 import { RoleWorkspace } from "./role-placeholder";
 import { WalletPanel } from "./wallet-panel";
+import { HskWalletPanel } from "./hsk-wallet-panel";
+import { createPublicClient, http } from "viem";
 
 type RequestInput = Readonly<{
   requiredSkill: string;
@@ -68,13 +86,15 @@ export function VerifierWorkspace() {
   const accountValue = account.value;
   const refreshAccountNotifications = account.refreshNotifications;
   const wallet = useAptorWallet();
+  const hskWallet = useHskWallet();
+  const isHsk = APTOR_CHAIN_MODE === "hsk";
   const [professional, setProfessional] = useState<AptorProfileV1 | null>(null);
   const [draft, setDraft] = useState<RequestDraft | null>(null);
   const [registeredPackage, setRegisteredPackage] =
     useState<AptorProofRequestPackageV1 | null>(null);
   const [tracking, setTracking] = useState<AptorRequestTrackingV1[]>([]);
-  const [durationEnabled, setDurationEnabled] = useState(false);
-  const [ratingEnabled, setRatingEnabled] = useState(false);
+  const [durationEnabled, setDurationEnabled] = useState(isHsk);
+  const [ratingEnabled, setRatingEnabled] = useState(isHsk);
   const [stage, setStage] = useState<RegistrationStage>("idle");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -94,7 +114,23 @@ export function VerifierWorkspace() {
     await listRequestTracking(token);
     const active = accountValue.verifier.activeRequests;
     const contractAddress = APTOR_CONTRACT_ADDRESS;
-    if (contractAddress) {
+    if (isHsk) {
+      const publicClient = createPublicClient({
+        chain: HSK_CHAIN,
+        transport: http(),
+      });
+      for (const item of active.filter((entry) => entry.request.hsk)) {
+        const state = await readHskRequest(
+          publicClient,
+          BigInt(`0x${item.request.request.requestId}`),
+        );
+        if (state.fulfilled) {
+          await updateRequestTracking(token, item.request.request.requestId, {
+            status: "fulfilled",
+          });
+        }
+      }
+    } else if (contractAddress) {
       for (const item of active) {
         const state = await queryPublicRequest(
           {
@@ -115,7 +151,7 @@ export function VerifierWorkspace() {
     }
     setTracking(await listRequestTracking(token));
     await refreshAccountNotifications();
-  }, [accountValue, refreshAccountNotifications]);
+  }, [accountValue, isHsk, refreshAccountNotifications]);
 
   useEffect(() => {
     if (
@@ -185,6 +221,91 @@ export function VerifierWorkspace() {
     setRegisteredPackage(null);
     setStage("validating");
     try {
+      if (isHsk) {
+        const contracts = requireHskContracts();
+        setStage("waiting-wallet");
+        const connected = await hskWallet.connect();
+        const requestId = randomHskScalar();
+        const requiredSkillHash = await encodeHskSkill(
+          draft.input.requiredSkill,
+        );
+        const hskDraft = createHskRequestDraft(
+          {
+            acceptedIssuerProfiles: issuerProfiles,
+            ...draft.input,
+          },
+          hskRequestIdHex(requestId),
+        );
+        setStage("submitting");
+        const registration = await createHskProofRequest(connected, {
+          requestId,
+          requiredSkillHash,
+          minimumMonths: draft.input.minimumDurationMonths ?? 0,
+          requiresProduction: draft.input.requireProductionDelivery,
+          minimumRatingHundredths:
+            draft.input.minimumClientRatingHundredths ?? 0,
+        });
+        setStage("finalizing");
+        const requestPackage = finalizeRequestDraftPackage(
+          HSK_NETWORK,
+          contracts.proofRequests,
+          issuerProfiles,
+          hskDraft,
+          registration.hash,
+          {
+            chainId: HSK_CHAIN_ID,
+            proofRequestsAddress: contracts.proofRequests,
+            verifierAddress: connected.address,
+            requiredSkillHash: requiredSkillHash.toString(),
+          },
+        );
+        setStage("delivering");
+        await createRequestTracking(account.value.privateProfile.accessToken, {
+          requestId: requestPackage.request.requestId,
+          verifierProfileId: account.value.profile.profileId,
+          professionalProfileId: professional.profileId,
+          contractAddress: contracts.proofRequests,
+          networkId: HSK_NETWORK,
+          registrationTransactionId: registration.hash,
+        });
+        const encrypted = await encryptEnvelopePayload(
+          requestPackage,
+          account.value.profile.profileId,
+          professional.profileId,
+          "proof_request",
+          professional.publicEncryptionKey,
+        );
+        const delivered = await sendEnvelope(
+          account.value.privateProfile.accessToken,
+          encrypted,
+        );
+        await account.save({
+          ...account.value,
+          verifier: {
+            ...account.value.verifier,
+            activeRequests: [
+              ...account.value.verifier.activeRequests.filter(
+                (item) =>
+                  item.request.request.requestId !==
+                  requestPackage.request.requestId,
+              ),
+              {
+                professionalProfileId: professional.profileId,
+                professionalHandle: professional.handle,
+                request: requestPackage,
+                envelopeId: delivered.envelopeId,
+              },
+            ],
+          },
+        });
+        setRegisteredPackage(requestPackage);
+        setStage("success");
+        setSuccess(
+          `Request registered in HSK block ${registration.receipt.blockNumber} and sent to @${professional.handle}.`,
+        );
+        await refreshStatuses();
+        return;
+      }
       const contractAddress = requireContractAddress();
       setStage("waiting-wallet");
       const connected = await wallet.connect();
@@ -273,12 +394,20 @@ export function VerifierWorkspace() {
 
   return (
     <RoleWorkspace
-      description="Trust Aptor Issuer profiles, select a Professional, register bounded requirements on Midnight, send the request, and monitor fulfillment automatically."
+      description={
+        isHsk
+          ? "Trust Aptor Issuer profiles, select a Professional, register bounded requirements on HashKey Chain, send the request, and monitor fulfillment automatically."
+          : "Trust Aptor Issuer profiles, select a Professional, register bounded requirements on Midnight, send the request, and monitor fulfillment automatically."
+      }
       headline="Ask for proof, not the project."
-      privacyDetail="The delivery service routes an encrypted request and caches public status. Midnight contract state remains authoritative; the Verifier never receives the source credential."
+      privacyDetail={
+        isHsk
+          ? "The delivery service routes an encrypted request and caches public status. HashKey Chain contract state remains authoritative; the Verifier never receives the source credential."
+          : "The delivery service routes an encrypted request and caches public status. Midnight contract state remains authoritative; the Verifier never receives the source credential."
+      }
       privacyStages={[
         "Public criteria",
-        "Midnight verification",
+        isHsk ? "HashKey verification" : "Midnight verification",
         "Automatic receipt",
       ]}
       privacySummary="The Verifier receives a registered answer, not the Professional's credential."
@@ -563,6 +692,7 @@ export function VerifierWorkspace() {
                         <label className="check-field">
                           <input
                             checked={durationEnabled}
+                            disabled={isHsk}
                             onChange={(event) =>
                               setDurationEnabled(event.target.checked)
                             }
@@ -588,6 +718,7 @@ export function VerifierWorkspace() {
                         <label className="check-field">
                           <input
                             checked={ratingEnabled}
+                            disabled={isHsk}
                             onChange={(event) =>
                               setRatingEnabled(event.target.checked)
                             }
@@ -629,7 +760,8 @@ export function VerifierWorkspace() {
                   <span>Registration desk</span>
                   <h3>Register and send</h3>
                   <p>
-                    Wallet approval is requested only for the Midnight
+                    Wallet approval is requested only for the{" "}
+                    {isHsk ? "HSK" : "Midnight"}
                     registration.
                   </p>
                 </div>
@@ -682,13 +814,19 @@ export function VerifierWorkspace() {
                     <span>Complete the workflow blocks first.</span>
                   </div>
                 )}
-                <WalletPanel wallet={wallet} />
+                {isHsk ? (
+                  <HskWalletPanel wallet={hskWallet} />
+                ) : (
+                  <WalletPanel wallet={wallet} />
+                )}
                 <button
                   className="action-button verifier-register__action"
                   disabled={
                     draft === null ||
                     professional === null ||
-                    wallet.status !== "connected" ||
+                    (isHsk
+                      ? hskWallet.status !== "ready"
+                      : wallet.status !== "connected") ||
                     !["idle", "failure"].includes(stage)
                   }
                   onClick={() => void registerAndSend()}
@@ -707,7 +845,10 @@ export function VerifierWorkspace() {
                 >
                   <span>{stage.replaceAll("-", " ")}</span>
                   <p>
-                    {stage === "idle" && wallet.status !== "connected"
+                    {stage === "idle" &&
+                    (isHsk
+                      ? hskWallet.status !== "ready"
+                      : wallet.status !== "connected")
                       ? "Connect a wallet to enable registration."
                       : stage === "idle"
                         ? "The reviewed request is ready."
@@ -715,7 +856,7 @@ export function VerifierWorkspace() {
                           ? "Finalized and delivered to the Professional inbox."
                           : stage === "failure"
                             ? "The flow stopped safely. Review the message and retry."
-                            : "Aptor is processing the real Midnight transaction and encrypted delivery."}
+                            : `Aptor is processing the real ${isHsk ? "HSK" : "Midnight"} transaction and encrypted delivery.`}
                   </p>
                 </div>
               </aside>
@@ -913,7 +1054,7 @@ export function VerifierWorkspace() {
               {success}
             </p>
           ) : null}
-          {!APTOR_CONTRACT_ADDRESS ? (
+          {!isHsk && !APTOR_CONTRACT_ADDRESS ? (
             <p className="workspace-message form-message form-message--warning">
               Request registration and monitoring require
               NEXT_PUBLIC_APTOR_CONTRACT_ADDRESS.

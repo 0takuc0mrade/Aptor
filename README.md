@@ -4,7 +4,30 @@
 
 Aptor lets professionals prove confidential work experience without exposing client IP, private repositories, internal metrics, exact ratings, project names, or client identities.
 
-This project is built on the Midnight Network.
+The original Aptor implementation is built on Midnight. The EAG HSK Edition
+adds an environment-selected HSK Chain path while preserving Midnight.
+
+## EAG HSK Edition
+
+HSK mode uses an approved-issuer credential registry, a public proof-request
+contract, and a generated Groth16 verifier. The Issuer registers an opaque
+Poseidon commitment, Aptor encrypts the credential and secret to the
+Professional, and the Professional generates the real proof in the browser.
+The Verifier receives public criteria and a fulfilled transaction receipt—not
+the credential or exact private values.
+
+The Anvil rehearsal is complete, including the three-profile browser workflow.
+The verifier, registry, and request contracts are now deployed on HSK testnet
+(chain `133`), and the designated Issuer is approved. The first complete
+testnet credential/request/proof lifecycle is the next checkpoint; no mainnet
+claim is made.
+
+| HSK testnet item    | Address                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| Groth16 verifier    | [`0xb4aF…029b`](https://testnet-explorer.hsk.xyz/address/0xb4aFc36F8f8b99Da2175548cB2780476a544029b) |
+| Credential registry | [`0x0E41…79e6`](https://testnet-explorer.hsk.xyz/address/0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6) |
+| Proof requests      | [`0x296F…44C0`](https://testnet-explorer.hsk.xyz/address/0x296F105eFA96eD3e672983bda9a2627Ba39a44C0) |
+| Approved Issuer     | [`0x8Ff4…2647`](https://testnet-explorer.hsk.xyz/address/0x8Ff4cb9873Ed223ad6D6dd8f367AEC014f0B2647) |
 
 ## Public release status
 
@@ -72,12 +95,14 @@ aptor/
 ├── apps/
 │   └── web/                 Next.js application shell
 ├── contracts/               Compact source and generated-artifact boundary
-│   └── aptor-credential/    Request-bound private capability contract package
+│   ├── aptor-credential/    Request-bound private capability contract package
+│   └── hsk/                 Solidity verifier, registry, requests, tests, and deploy scripts
 ├── docs/                    Architecture, privacy, scope, and build plan
 ├── packages/
 │   ├── aptor-midnight/       Local provider stack, deployment API, and network test
 │   ├── aptor-browser/        Browser crypto, vaults, files, wallet, and contract APIs
 │   ├── aptor-delivery/       SQLite migrations, capability auth, encrypted routing
+│   ├── zk-hsk/               Circom circuit, Groth16 artifacts, and proof tooling
 │   └── shared/               Strict shared TypeScript domain types
 ├── scripts/                  Repository automation notes
 ├── .env.example             Non-secret endpoint placeholders
@@ -99,6 +124,11 @@ aptor/
 | Local storage      | One AES-GCM/PBKDF2 IndexedDB account vault with every role state                                    | Multi-device recovery                              |
 | Delivery service   | SQLite, hashed capabilities, ciphertext envelopes, notifications, status cache, Railway volume plan | Multi-instance SQL adapter and production identity |
 | Proof results      | Automatic registration, proof-submitted, and fulfilled states from chain queries                    | Shareable public receipt links                     |
+
+HSK-specific implementation is also real: Circom witness generation,
+Groth16 verification, issuer approval and revocation, request registration,
+nullifier replay protection, injected EVM wallet transactions, and post-finality
+contract reads are all exercised against Anvil.
 
 ## Getting started
 
@@ -167,6 +197,29 @@ The local stack is pinned to the image versions recorded in
 local genesis-funded development wallet only. It never reads a production seed
 or mnemonic.
 
+### Run the HSK milestone
+
+Build the Aptor credential circuit and run all HSK contract tests:
+
+```bash
+npm run hsk:aptor:build
+npm run hsk:aptor:test
+```
+
+With Anvil running on chain `31337` and the deterministic local contracts
+deployed, run the direct lifecycle and the complete three-browser workflow:
+
+```bash
+npm run hsk:anvil:validate
+npm run hsk:anvil:e2e
+```
+
+Set `NEXT_PUBLIC_APTOR_CHAIN_MODE=hsk` plus the chain ID, RPC, registry, and
+request-contract variables shown in `.env.example`. The build copies the real
+WASM and zkey into the derived browser artifact boundary. Deployment commands,
+privacy details, local receipt evidence, and testnet gates are recorded in
+[`docs/hsk-migration-log.md`](docs/hsk-migration-log.md).
+
 ## Integration status vocabulary
 
 - **Compiled Compact circuit** — the handwritten Compact source compiled successfully.
@@ -215,7 +268,8 @@ npm run security:scan
 - [Preprod deployment](docs/PREPROD_DEPLOYMENT.md)
 - [Preprod evidence](docs/PREPROD_EVIDENCE.md)
 - [Production hosting](docs/PRODUCTION_HOSTING.md)
-- [Two-minute demo script](docs/DEMO_SCRIPT.md)
+- [HSK three-minute demo script](docs/DEMO_SCRIPT.md)
+- [HSK migration and Anvil evidence](docs/hsk-migration-log.md)
 - [Submission checklist](docs/SUBMISSION_CHECKLIST.md)
 
 ## Security baseline
