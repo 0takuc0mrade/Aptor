@@ -126,6 +126,16 @@ test("three browser profiles complete the real Aptor HSK flow on Anvil", async (
   const professional = await professionalContext.newPage();
   const issuer = await issuerContext.newPage();
   const verifier = await verifierContext.newPage();
+
+  const healthResponse = await professional.request.get("/api/health");
+  expect(healthResponse.status()).toBe(200);
+  const health = (await healthResponse.json()) as {
+    status: string;
+    configurationIssues: unknown[];
+  };
+  expect(health.status).toBe("ok");
+  expect(health.configurationIssues).toEqual([]);
+
   await installAnvilWallet(professional, professionalAddress);
   await installAnvilWallet(issuer, issuerAddress);
   await installAnvilWallet(verifier, verifierAddress);

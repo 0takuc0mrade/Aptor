@@ -1,5 +1,32 @@
 # Aptor production hosting
 
+## HSK testnet on Railway
+
+The HSK edition uses the same Railway service and persistent SQLite volume as
+the Midnight edition. Add these variables in the Railway service's Variables
+tab before deploying:
+
+```text
+NEXT_PUBLIC_APTOR_CHAIN_MODE=hsk
+NEXT_PUBLIC_HSK_CHAIN_ID=133
+NEXT_PUBLIC_HSK_NETWORK=testnet
+NEXT_PUBLIC_HSK_RPC_URL=https://testnet.hsk.xyz
+NEXT_PUBLIC_HSK_EXPLORER_URL=https://testnet-explorer.hsk.xyz
+NEXT_PUBLIC_HSK_CREDENTIAL_REGISTRY_ADDRESS=0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6
+NEXT_PUBLIC_HSK_PROOF_REQUESTS_ADDRESS=0x296F105eFA96eD3e672983bda9a2627Ba39a44C0
+APTOR_DELIVERY_DB_PATH=/data/aptor.sqlite
+APTOR_PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
+```
+
+Do not copy `.env.hsk.local` into Railway. The hosted application does not
+need the deployer or role private keys. Keep every private key, seed phrase,
+and vault password local and uncommitted.
+
+Attach one volume at `/data`, generate a public domain, and keep the service at
+one replica while delivery storage uses SQLite. Because Next.js embeds
+`NEXT_PUBLIC_*` values at build time, trigger a full redeploy after changing
+any HSK browser variable.
+
 ## Decision
 
 Use one Railway persistent service built from this repository, with one Railway
