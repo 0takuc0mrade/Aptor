@@ -3,6 +3,15 @@
 Unchecked items are required; do not convert them to claims without direct
 evidence.
 
+## HSK mainnet deployment
+
+- [x] Public RPC reports HashKey Chain mainnet ID `177`.
+- [x] Verifier, registry, and request creation receipts have status `0x1`.
+- [x] Runtime bytecode exists at all three mainnet addresses.
+- [x] Registry owner and request-contract dependency reads match deployment.
+- [x] Public explorer links and a reproducible verifier are recorded in
+      [`HSK_MAINNET_EVIDENCE.md`](HSK_MAINNET_EVIDENCE.md).
+
 ## Release authority
 
 - [x] User approves one contract deployment in 1AM.

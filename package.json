@@ -41,6 +41,7 @@
     "hsk:aptor:test": "npm run test:aptor --workspace @aptor/zk-hsk && forge test --root contracts/hsk -vv",
     "hsk:anvil:validate": "node contracts/hsk/scripts/validate-anvil.mjs",
     "hsk:anvil:e2e": "npm run test:e2e:hsk --workspace @aptor/web",
+    "hsk:mainnet:verify": "bash scripts/verify-hsk-mainnet-deployment.sh",
     "release:bundle:check": "node scripts/verify-production-bundle.mjs",
     "release:smoke": "node scripts/smoke-production.mjs",
     "start:production": "npm run delivery:migrate && npm run start:production --workspace @aptor/web",

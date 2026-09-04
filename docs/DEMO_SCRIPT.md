@@ -1,15 +1,17 @@
 # Aptor HSK three-minute demo script
 
-Use the hosted in-platform flow and a completed real HSK testnet scenario once
-the organizer-assisted deployment is finalized. Until then, use the validated
-Anvil rehearsal and label it clearly as local. Do not show file import/export,
-repeat transactions, or substitute transaction IDs.
+Open with Aptor's [verified HSK mainnet deployment](HSK_MAINNET_EVIDENCE.md),
+then use the completed HSK testnet scenario for the interactive lifecycle. Keep
+the network labels explicit: mainnet proves the public deployment; testnet
+shows the credential/request/proof flow. Do not show file import/export, repeat
+transactions, or substitute transaction IDs.
 
 ## 0:00–0:25 — The confidential-work problem
 
 “A professional's strongest work is often confidential. Aptor lets that work
 speak without revealing the client, repository, project, or exact private
-values.” Show the Professional workspace and privacy boundary.
+values.” Briefly show the successful mainnet creation transactions, then the
+Professional workspace and privacy boundary.
 
 ## 0:25–0:50 — Invite the previous client
 

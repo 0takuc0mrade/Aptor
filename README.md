@@ -16,18 +16,27 @@ Professional, and the Professional generates the real proof in the browser.
 The Verifier receives public criteria and a fulfilled transaction receipt—not
 the credential or exact private values.
 
-The Anvil rehearsal is complete, including the three-profile browser workflow.
-The verifier, registry, and request contracts are now deployed on HSK testnet
-(chain `133`), and the designated Issuer is approved. The first complete
-testnet credential/request/proof lifecycle is the next checkpoint; no mainnet
-claim is made.
+The verifier, registry, and request contracts are deployed on **HashKey Chain
+mainnet** (chain `177`). All three contract-creation receipts succeeded in
+block `26744614`, and live mainnet RPC queries return runtime bytecode at each
+address. See the [reproducible mainnet evidence](docs/HSK_MAINNET_EVIDENCE.md).
 
-| HSK testnet item    | Address                                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| Groth16 verifier    | [`0xb4aF…029b`](https://testnet-explorer.hsk.xyz/address/0xb4aFc36F8f8b99Da2175548cB2780476a544029b) |
-| Credential registry | [`0x0E41…79e6`](https://testnet-explorer.hsk.xyz/address/0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6) |
-| Proof requests      | [`0x296F…44C0`](https://testnet-explorer.hsk.xyz/address/0x296F105eFA96eD3e672983bda9a2627Ba39a44C0) |
-| Approved Issuer     | [`0x8Ff4…2647`](https://testnet-explorer.hsk.xyz/address/0x8Ff4cb9873Ed223ad6D6dd8f367AEC014f0B2647) |
+| HSK mainnet item    | Address                                                                                        | Successful creation transaction                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Groth16 verifier    | [`0xb4aF…029b`](https://hsk.blockscout.com/address/0xb4aFc36F8f8b99Da2175548cB2780476a544029b) | [`0x4743f936…f6399e`](https://hsk.blockscout.com/tx/0x4743f936c2d89e613b8ff6100ff85a50c0a9cc2a380b928b66bc708c0bf6399e)  |
+| Credential registry | [`0x0E41…79e6`](https://hsk.blockscout.com/address/0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6) | [`0xf945fb24…2481889`](https://hsk.blockscout.com/tx/0xf945fb241f16beb1ab126772e5eeb74a417093379f80f4e4219eb744b2481889) |
+| Proof requests      | [`0x296F…44C0`](https://hsk.blockscout.com/address/0x296F105eFA96eD3e672983bda9a2627Ba39a44C0) | [`0x58c0c0f6…31133c3`](https://hsk.blockscout.com/tx/0x58c0c0f666f9720137c8f74381c45593f728873e70a740915f3758f2831133c3) |
+
+Anyone can reproduce the live receipt, bytecode, deployment-block, and contract
+wiring checks without a wallet or private key:
+
+```bash
+npm run hsk:mainnet:verify
+```
+
+The Anvil rehearsal and HSK testnet deployment remain useful lifecycle
+evidence. The mainnet record above proves contract deployment; it does not by
+itself claim a completed mainnet credential/request/proof lifecycle.
 
 ## Public release status
 

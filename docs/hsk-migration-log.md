@@ -7,6 +7,11 @@ from Aptor's issuer, professional, and verifier product flows. Private
 credential values must remain offchain; HSK receives only public inputs,
 cryptographic proofs, commitments, status, and verification receipts.
 
+> **Current status:** The later mainnet evidence gate described in the phased
+> notes below passed on 2026-08-27. See
+> [HSK mainnet deployment evidence](HSK_MAINNET_EVIDENCE.md) for public
+> transactions and a reproducible live check.
+
 ## Phase 0 — viability preflight
 
 - Foundry (`forge`, `cast`) and Circom are installed.
@@ -387,3 +392,24 @@ block `32322260`, transaction
 An authoritative `approvedIssuers` read returned `true`. A production build
 with these exact public testnet addresses also passed. No private key or local
 deployment cache is tracked.
+
+## Phase 4 — HSK mainnet deployment evidence
+
+On 2026-08-27, Aptor's Groth16 verifier, credential registry, and proof-request
+contracts were deployed successfully to HashKey Chain mainnet, chain `177`.
+All three creation transactions finalized in block `26744614` at
+`2026-08-27T13:12:43Z`.
+
+| Contract            | Address                                                                                                                       | Deployment transaction                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Groth16 verifier    | [`0xb4aFc36F8f8b99Da2175548cB2780476a544029b`](https://hsk.blockscout.com/address/0xb4aFc36F8f8b99Da2175548cB2780476a544029b) | [`0x4743f936…f6399e`](https://hsk.blockscout.com/tx/0x4743f936c2d89e613b8ff6100ff85a50c0a9cc2a380b928b66bc708c0bf6399e)  |
+| Credential registry | [`0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6`](https://hsk.blockscout.com/address/0x0E4100F542106e0b60c918E01cE7f75dF0bb79e6) | [`0xf945fb24…2481889`](https://hsk.blockscout.com/tx/0xf945fb241f16beb1ab126772e5eeb74a417093379f80f4e4219eb744b2481889) |
+| Proof requests      | [`0x296F105eFA96eD3e672983bda9a2627Ba39a44C0`](https://hsk.blockscout.com/address/0x296F105eFA96eD3e672983bda9a2627Ba39a44C0) | [`0x58c0c0f6…31133c3`](https://hsk.blockscout.com/tx/0x58c0c0f666f9720137c8f74381c45593f728873e70a740915f3758f2831133c3) |
+
+The live verifier (`npm run hsk:mainnet:verify`) confirms chain ID `177`,
+successful receipts, non-empty runtime bytecode, the deployment block and
+timestamp, the registry owner, and both request-contract dependencies. A
+separate local comparison found exact byte-for-byte matches between the public
+creation transaction inputs and the Foundry artifacts built from this
+repository. Full details and scope are recorded in
+[`HSK_MAINNET_EVIDENCE.md`](HSK_MAINNET_EVIDENCE.md).
